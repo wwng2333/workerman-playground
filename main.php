@@ -45,7 +45,8 @@ $http_worker->onMessage = function (TcpConnection $connection, Request $request)
         </html>');
     }
     $duration = $timer->stop();
-    $response->header('Server-Timing', $is_cached . '; dur=' . $duration);
+    $response->header('X-Powered-By', 'https://github.com/wwng2333/jsdelivr-splice');
+    $response->header('Server-Timing', $is_cached . '; dur=' . $duration->asMilliseconds());
     $connection->close($response);
 };
 
