@@ -33,7 +33,8 @@ $http_worker->onMessage = function (TcpConnection $connection, Request $request)
         $response = new Response(200, [
             'Connection' => 'close',
             'Cache-control' => 'max-age=86400',
-            'Content-Encoding' => 'gzip'
+            'Content-Encoding' => 'gzip',
+            'Access-Control-Allow-Origin' => '*'
         ], gzencode($res));
         $response->header('Content-Type', 'text/javascript;charset=UTF-8');
     } else {
