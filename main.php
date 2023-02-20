@@ -34,7 +34,7 @@ $http_worker->onMessage = function (TcpConnection $connection, Request $request)
             'Cache-control' => 'max-age=86400',
             'Content-Encoding' => 'gzip'
             
-        ], $res);
+        ], gzencode($res));
         $response->header('Content-Type', 'text/javascript;charset=UTF-8');
     } else {
         echo $request->uri() . " err\n";
