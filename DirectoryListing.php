@@ -1,7 +1,9 @@
 <?php
 ini_set('memory_limit', '-1');
 use Workerman\Worker;
-use Workerman\Protocols\Http;
+use Workerman\Connection\TcpConnection;
+use Workerman\Protocols\Http\Request;
+use Workerman\Protocols\Http\Response;
 
 require_once __DIR__ . '/vendor/autoload.php';
 
@@ -179,11 +181,11 @@ function get_full_html($path, $sort, $data)
 
 $http_worker = new Worker("http://0.0.0.0:12101");
 $http_worker->count = 4;
-$http_worker->onMessage = function ($connection, $data) {
+$http_worker->onMessage = function (TcpConnection $connection, Request $request) {
 	$GLOBALS['time_start'] = microtime(true);
 	$go_back = '</br><img src="?gif=parentdir" alt="[PARENTDIR]"> <a href="#" onClick="javascript:history.go(-1);">返回上一页</a>';
-	if (isset($_GET['gif'])) {
-		switch ($_GET['gif']) {
+	if ($request->get('name')) {
+		switch ($request->get('name')) {
 			case 'parentdir':
 				$gif = 'R0lGODlhFAAWAMIAAP///8z//5mZmWZmZjMzMwAAAAAAAAAAACH+TlRoaXMgYXJ0IGlzIGluIHRoZSBwdWJsaWMgZG9tYWluLiBLZXZpbiBIdWdoZXMsIGtldmluaEBlaXQuY29tLCBTZXB0ZW1iZXIgMTk5NQAh+QQBAAABACwAAAAAFAAWAAADSxi63P4jEPJqEDNTu6LO3PVpnDdOFnaCkHQGBTcqRRxuWG0v+5LrNUZQ8QPqeMakkaZsFihOpyDajMCoOoJAGNVWkt7QVfzokc+LBAA7';
 				break;
@@ -197,25 +199,27 @@ $http_worker->onMessage = function ($connection, $data) {
 				$gif = 'R0lGODlhFAAWAMIAAP///8z//8zMzJmZmTMzMwAAAAAAAAAAACH+TlRoaXMgYXJ0IGlzIGluIHRoZSBwdWJsaWMgZG9tYWluLiBLZXZpbiBIdWdoZXMsIGtldmluaEBlaXQuY29tLCBTZXB0ZW1iZXIgMTk5NQAh+QQBAAABACwAAAAAFAAWAAADaUi6vPEwEECrnSS+WQoQXSEAE6lxXgeopQmha+q1rhTfakHo/HaDnVFo6LMYKYPkoOADim4VJdOWkx2XvirUgqVaVcbuxCn0hKe04znrIV/ROOvaG3+z63OYO6/uiwlKgYJJOxFDh4hTCQA7';
 				break;
 			default:
-				Http::header("HTTP/1.1 404 Not Found");
+				$response = new Response(404);
 				break;
 		}
-		Http::header("Content-type: image/gif");
-		$connection->send(base64_decode($gif));
-		Worker::stopAll();
+		$response = new Response(200, [
+			'Content-Type' => 'image/gif'
+		], base64_decode($gif));
+		$connection->send($response);
 	}
-	if (count($data['files']) > 0) {
+	$files = $request->file();
+	if (count($files) > 0) {
 		$topath = empty($_POST['topath']) ? '/' : $_POST['topath'];
 		if (substr($topath, '-1') !== '/')
 			$topath .= '/';
-		foreach ($data['files'] as $array) {
-			$file_size = file_put_contents($topath . $array['file_name'], $array['file_data']);
-			if ($file_size == $array['file_size']) {
-				$connection->send('上传成功' . $go_back);
+		foreach ($files as $array) {
+			if ($array['error'] === UPLOAD_ERR_OK) {
+				rename($array['tmp_name'], $topath . $array['name']);
 			} else {
-				$connection->send('上传失败' . $go_back);
+				$connection->send('Upload failed.' . $go_back);
 			}
 		}
+		$connection->send('Upload success.' . $go_back);
 	}
 	if (!isset($_GET['sort']))
 		$_GET['sort'] = false;
@@ -225,22 +229,18 @@ $http_worker->onMessage = function ($connection, $data) {
 		if (substr($_GET['dir'], '-1') !== '/')
 			$_GET['dir'] .= '/';
 	}
-	if (isset($_GET['download'])) {
-		$tmp = explode('/', $_GET['download']);
-		$file_name = end($tmp);
-		if (is_readable($_GET['download'])) {
-			Http::header("Content-type: text/plain");
-			Http::header("Accept-Ranges: bytes");
-			Http::header("Content-Disposition: attachment; filename=" . $file_name);
-			$connection->send(file_get_contents($_GET['download']));
+	if ($request->get('download')) {
+		if (is_readable($request->get('download'))) {
+			$response = (new Response())->withFile($request->get('download'));
+			$connection->send($response);
 		} else {
-			Http::header("HTTP/1.1 404 Not Found");
+			$connection->send(new Response(404));
 		}
-	} elseif (isset($_GET['delete'])) {
-		unlink($GLOBALS['path'] . $_GET['delete']);
+	} elseif ($request->get('delete')) {
+		unlink($GLOBALS['path'] . $request->get('delete'));
 		$connection->send('<script>history.go(-1)</script>');
 	} else {
-		$connection->send(get_full_html($_GET['dir'], $_GET['sort'], $data));
+		$connection->send(get_full_html($request->get('dir'), $request->get('sort'), $request));
 	}
 };
 
