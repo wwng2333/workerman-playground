@@ -4,6 +4,7 @@ use Workerman\Connection\TcpConnection;
 use Workerman\Protocols\Http\Request;
 use Workerman\Protocols\Http\Response;
 use SebastianBergmann\Timer\Timer;
+use WpOrg\Requests\Requests;
 
 require_once __DIR__ . '/vendor/autoload.php';
 
@@ -27,7 +28,7 @@ $http_worker->onMessage = function (TcpConnection $connection, Request $request)
             $res = '';
             foreach ($list as $addr) {
                 $url = sprintf('https://fastly.jsdelivr.net%s/%s', $request->path(), $addr);
-                $res .= curl($url) . "\n";
+                $res .= Requests::get($url) . "\n";
             }
             $memcached->set($key_name, $res, 86400);
         }
@@ -49,15 +50,3 @@ $http_worker->onMessage = function (TcpConnection $connection, Request $request)
 };
 
 Worker::runAll();
-
-function curl($url)
-{
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, FALSE);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-    $output = curl_exec($ch);
-    curl_close($ch);
-    return $output;
-}
