@@ -29,7 +29,7 @@ $http_worker->onMessage = function (TcpConnection $connection, Request $request)
                 $url = sprintf('https://fastly.jsdelivr.net%s/%s', $request->path(), $addr);
                 $res .= curl($url) . "\n";
             }
-            $memcached->set($key_name, $res, MEMCACHE_COMPORESSED, 864400);
+            $memcached->set($key_name, $res, 86400);
         }
         $memcached->quit();
         $response = new Response(200, [
