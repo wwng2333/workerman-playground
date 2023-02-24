@@ -12,18 +12,16 @@ $http_worker = new Worker("http://0.0.0.0:2334");
 $http_worker->count = 2;
 $http_worker->name = 'jsdelivr';
 $http_worker->onMessage = function (TcpConnection $connection, Request $request) {
-    $memcached = new Memcached();
-    $memcached->addServer('localhost', 11211);
     $timer = new Timer;
     $timer->start();
+    $memcached = new Memcached();
+    $memcached->addServer('localhost', 11211);
+    $is_cached = 'missedCache';
     if (in_array($request->path(), UPSTREAM) and $request->get('family')) {
         $key_name = md5($request->uri());
-        $is_cached = 'missedCache';
         if ($res = $memcached->get($key_name)) {
             $is_cached = 'cache; desc="Cache Read"';
-            echo $request->uri() . " cache hit\n";
         } else {
-            echo $request->uri() . " new query\n";
             $list = stristr($request->get('family'), '|') ? explode('|', $request->get('family')) : [$request->get('family')];
             $res = '';
             foreach ($list as $addr) {
@@ -34,15 +32,17 @@ $http_worker->onMessage = function (TcpConnection $connection, Request $request)
             $memcached->set($key_name, $res, 86400);
         }
         $memcached->quit();
+        if (stristr($request->header('Accept-Encoding'), 'gzip'))
+            $res = gzencode($res);
         $response = new Response(200, [
             'Connection' => 'close',
             'Cache-control' => 'max-age=86400',
-            'Content-Encoding' => 'gzip',
             'Access-Control-Allow-Origin' => '*'
-        ], gzencode($res));
+        ], $res);
+        if (stristr($request->header('Accept-Encoding'), 'gzip'))
+            $response->header('Content-Encoding', 'gzip');
         $response->header('Content-Type', 'text/javascript;charset=UTF-8');
     } else {
-        echo $request->uri() . " err\n";
         $response = new Response(403, ['Connection' => 'close'], '<html><head><title>403 Forbidden</title></head><body><center><h1>403 Forbidden</h1></center><hr><center>workerman</center></body></html>');
     }
     $duration = $timer->stop();
