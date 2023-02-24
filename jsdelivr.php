@@ -7,7 +7,7 @@ use SebastianBergmann\Timer\Timer;
 use WpOrg\Requests\Requests;
 
 require_once __DIR__ . '/vendor/autoload.php';
-define('UPSTREAM', ['/npm', '/gh']);
+define('UPSTREAM', ['/npm', '/gh', '/wp']);
 $http_worker = new Worker("http://0.0.0.0:2334");
 $http_worker->count = 2;
 $http_worker->name = 'jsdelivr';
@@ -37,11 +37,11 @@ $http_worker->onMessage = function (TcpConnection $connection, Request $request)
         $response = new Response(200, [
             'Connection' => 'close',
             'Cache-control' => 'max-age=86400',
-            'Access-Control-Allow-Origin' => '*'
+            'Access-Control-Allow-Origin' => '*',
+            'Content-Type' => 'text/plain; charset=UTF-8'
         ], $res);
         if (stristr($request->header('Accept-Encoding'), 'gzip'))
             $response->header('Content-Encoding', 'gzip');
-        $response->header('Content-Type', 'text/javascript;charset=UTF-8');
     } else {
         $response = new Response(403, ['Connection' => 'close'], '<html><head><title>403 Forbidden</title></head><body><center><h1>403 Forbidden</h1></center><hr><center>workerman</center></body></html>');
     }
