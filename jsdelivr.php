@@ -11,13 +11,14 @@ $http_worker = new Worker("http://0.0.0.0:2334");
 $http_worker->count = 2;
 $http_worker->name = 'jsdelivr';
 $http_worker->onMessage = function (TcpConnection $connection, Request $request) {
+    $memcache = new Memcache;
+    $memcache->connect('localhost', 11211);
     $timer = new Timer;
     $timer->start();
     $is_cached = 'missedCache';
     if (($request->path() == '/npm' or $request->path() == '/gh') and $request->get('family')) {
-        $cache_file = '/tmp/jsdelivr_' . md5($request->uri());
-        if (is_file($cache_file)) {
-            $res = file_get_contents($cache_file);
+        $key_name = md5($request->uri());
+        if ($res = $memcache->get($key_name) {
             $is_cached = 'cache; desc="Cache Read"';
             echo $request->uri() . " cache hit\n";
         } else {
@@ -28,8 +29,9 @@ $http_worker->onMessage = function (TcpConnection $connection, Request $request)
                 $url = sprintf('https://fastly.jsdelivr.net%s/%s', $request->path(), $addr);
                 $res .= curl($url) . "\n";
             }
-            file_put_contents($cache_file, $res);
+            $memcache->set($key_name, $res, MEMCACHE_COMPORESSED, 864400);
         }
+        $memcache->close();
         $response = new Response(200, [
             'Connection' => 'close',
             'Cache-control' => 'max-age=86400',
