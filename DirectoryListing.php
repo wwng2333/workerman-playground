@@ -1,4 +1,5 @@
 <?php
+ini_set('memory_limit', '-1');
 use Workerman\Worker;
 use Workerman\Connection\TcpConnection;
 use Workerman\Protocols\Http\Request;
@@ -140,7 +141,7 @@ function make_list($dir, $array, $path)
 	}
 	for ($i = 0; $i < count($array['name']); $i++) {
 		$name = $array['name'][$i];
-		$real_path = str_replace('//', '/', $dir . $name);
+		$real_path = remove_too_many_slash($dir . $name);
 		if ($array['dir'][$i]) {
 			$mtime_now = date("Y-m-d H:i", $array['mtime'][$i]);
 			$str .= html('tr') . gif('dir', 'DIR') . html('td') . link_to('dir', $real_path, $name) . html('td');
@@ -160,15 +161,21 @@ function make_list($dir, $array, $path)
 
 function upload_html($path)
 {
-	$real_path = str_replace('//', '/', $GLOBALS['path'] . $path);
+	$real_path = remove_too_many_slash($GLOBALS['path'] . $path);
 	return '<form action="upload" method="post" enctype="multipart/form-data"><input type="hidden" name="topath"  value="' . $real_path . '" /><input type="file" name="file" id="file" /><input type="submit" name="submit" value="上传" /></form>';
 }
 
+function remove_too_many_slash($input)
+{
+	while (substr_count($input, '//') > 0)
+		$input = str_replace('//', '/', $input);
+	return $input;
+}
 function get_full_html($data)
 {
 	$path = $data->path();
 	$sort = $data->get('sort');
-	$real_path = str_replace('//', '/', $GLOBALS['path'] . $path . '/');
+	$real_path = remove_too_many_slash($GLOBALS['path'] . $path . '/');
 	$table = make_list($real_path, read_dir($real_path, $sort), $path);
 	$GLOBALS['total_size'] = formatsize($GLOBALS['total_size']);
 	$header = "<!DOCTYPE html PUBLIC \"-//WAPFORUM//DTD XHTML Mobile 1.0//EN\" \"http://www.wapforum.org/DTD/xhtml-mobile10.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n<head>\n<title>%s 的索引</title>\n<style type=\"text/css\" media=\"screen\">pre{background:0 0}body{margin:2em}tb{width:600px;margin:0 auto}</style>\n<script>if(window.name!=\"bencalie\"){location.reload();window.name=\"bencalie\"}else{window.name=\"\"}function del(){return confirm('Really delete?')}</script>\n</head>\n<body>\n<strong>$real_path 的索引</strong>\n";
