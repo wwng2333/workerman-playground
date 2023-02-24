@@ -18,7 +18,7 @@ $http_worker->onMessage = function (TcpConnection $connection, Request $request)
     $is_cached = 'missedCache';
     if (($request->path() == '/npm' or $request->path() == '/gh') and $request->get('family')) {
         $key_name = md5($request->uri());
-        if ($res = $memcache->get($key_name) {
+        if ($res = $memcache->get($key_name)) {
             $is_cached = 'cache; desc="Cache Read"';
             echo $request->uri() . " cache hit\n";
         } else {
