@@ -1,5 +1,4 @@
 <?php
-ini_set('memory_limit', '-1');
 use Workerman\Worker;
 use Workerman\Connection\TcpConnection;
 use Workerman\Protocols\Http\Request;
@@ -37,11 +36,11 @@ function disk_usage()
 
 function get_ver($data)
 {
-	//$_d = $data['server'];
+	list($host, $port) = explode(':', $data);
 	$time_usage = round((microtime(true) - $GLOBALS['time_start']) * 1000, 4);
 	$mem_usage = round(memory_get_usage() / 1024 / 1024, 2);
 	$_s = "Processed in {$time_usage} ms , {$mem_usage} MB memory used.\n";
-	return disk_usage() . sprintf($_s . '</br>Workerman %s Server at %s Port %s', Worker::VERSION, 'SERVER_NAME', 'SERVER_PORT');
+	return disk_usage() . sprintf($_s . '</br>Workerman %s Server at %s Port %s', Worker::VERSION, $host, $port);
 }
 
 function read_dir($dir, $sort = 'name', $order = SORT_DESC)
@@ -50,7 +49,7 @@ function read_dir($dir, $sort = 'name', $order = SORT_DESC)
 	unset($list[0], $list[1]);
 	foreach ($list as $k => $name) {
 		$file_name[] = $name;
-		$real_path = $dir . $name;
+		$real_path = $dir . '/' . $name;
 		$is_dir[] = @scandir($real_path) ? true : false;
 		$file_size[] = filesize($real_path);
 		$file_mtime[] = filemtime($real_path);
@@ -73,8 +72,7 @@ function read_dir($dir, $sort = 'name', $order = SORT_DESC)
 
 function parentdir($where)
 {
-	$where = urlencode($where);
-	return "<tr><td valign=\"top\"><img src=\"?gif=parentdir\" alt=\"[PARENTDIR]\"></td><td><a href=\"?dir=$where\">Parent Directory</a></td><td>&nbsp;</td><td align=\"right\">  - </td><td>&nbsp;</td></tr>";
+	return "<tr><td valign=\"top\"><img src=\"?gif=parentdir\" alt=\"[PARENTDIR]\"></td><td><a href=\"$where\">Parent Directory</a></td><td>&nbsp;</td><td align=\"right\">  - </td><td>&nbsp;</td></tr>";
 }
 
 function del($name)
@@ -113,11 +111,12 @@ function html($what)
 
 function link_to($mode, $real_path, $name)
 {
-	$real_path = urlencode($real_path);
-	if ($mode == 'dir')
+	//$real_path = urlencode($real_path);
+	if ($mode == 'dir') {
+		$real_path .= '/';
 		$name .= '/';
-	$what = ($mode == 'dir') ? 'dir' : 'download';
-	return "<a href=\"?{$what}=$real_path\">$name</a>";
+	}
+	return "<a href=\"$real_path\">$name</a>";
 }
 
 function make_list($dir, $array, $path)
@@ -165,51 +164,65 @@ function upload_html($path)
 	return '<form action="upload" method="post" enctype="multipart/form-data"><input type="hidden" name="topath"  value="' . $real_path . '" /><input type="file" name="file" id="file" /><input type="submit" name="submit" value="上传" /></form>';
 }
 
-function get_full_html($path, $sort, $data)
+function get_full_html($data)
 {
-	$real_path = str_replace('//', '/', $GLOBALS['path'] . $path);
+	$path = $data->path();
+	$sort = $data->get('sort');
+	$real_path = str_replace('//', '/', $GLOBALS['path'] . $path . '/');
 	$table = make_list($real_path, read_dir($real_path, $sort), $path);
 	$GLOBALS['total_size'] = formatsize($GLOBALS['total_size']);
-	$header = "<!DOCTYPE html PUBLIC \"-//WAPFORUM//DTD XHTML Mobile 1.0//EN\" \"http://www.wapforum.org/DTD/xhtml-mobile10.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n<head>\n<title>%s 的索引</title>\n<style type=\"text/css\" media=\"screen\">pre{background:0 0}body{margin:2em}tb{width:600px;margin:0 auto}</style>\n<script>if(window.name!=\"bencalie\"){location.reload();window.name=\"bencalie\"}else{window.name=\"\"}function del(){return confirm('确定要删除吗？')}</script>\n</head>\n<body>\n<strong>$real_path 的索引</strong>\n";
+	$header = "<!DOCTYPE html PUBLIC \"-//WAPFORUM//DTD XHTML Mobile 1.0//EN\" \"http://www.wapforum.org/DTD/xhtml-mobile10.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n<head>\n<title>%s 的索引</title>\n<style type=\"text/css\" media=\"screen\">pre{background:0 0}body{margin:2em}tb{width:600px;margin:0 auto}</style>\n<script>if(window.name!=\"bencalie\"){location.reload();window.name=\"bencalie\"}else{window.name=\"\"}function del(){return confirm('Really delete?')}</script>\n</head>\n<body>\n<strong>$real_path 的索引</strong>\n";
 	$footer = upload_html($path) . "<address>%s</address>\n</body>\n</html>";
-	$template_a = sprintf($header, $real_path) . '<p>没有文件</p>' . $footer;
 	$template = sprintf($header, $real_path) . "<table><th><img src=\"?gif=ico\" alt=\"[ICO]\"></th><th><a href=\"?dir=$real_path&sort=name\">名称</a></th><th><a href=\"?dir=$real_path&sort=mtime\">最后更改</a></th><th><a href=\"?dir=$real_path&sort=size\">大小</a></th></tr><tr><th colspan=\"6\"><hr></th></tr>%s<tr><th colspan=\"6\"><hr></th></tr></table>" . $footer;
 	if (!$table)
-		return sprintf($template_a, get_ver($data));
-	return sprintf($template, $table, "当前目录下共 {$GLOBALS['total_files']} 文件或文件夹, 总计 {$GLOBALS['total_size']}.</br>" . get_ver($data));
+		return sprintf(sprintf($header, $real_path) . '<p>No files.</p>' . $footer, get_ver($data->host()));
+	return sprintf($template, $table, "Total {$GLOBALS['total_files']} file(s), {$GLOBALS['total_size']}; " . get_ver($data->host()));
+}
+
+function get_gif($name)
+{
+	switch ($name) {
+		case 'parentdir':
+			$gif = 'R0lGODlhFAAWAMIAAP///8z//5mZmWZmZjMzMwAAAAAAAAAAACH+TlRoaXMgYXJ0IGlzIGluIHRoZSBwdWJsaWMgZG9tYWluLiBLZXZpbiBIdWdoZXMsIGtldmluaEBlaXQuY29tLCBTZXB0ZW1iZXIgMTk5NQAh+QQBAAABACwAAAAAFAAWAAADSxi63P4jEPJqEDNTu6LO3PVpnDdOFnaCkHQGBTcqRRxuWG0v+5LrNUZQ8QPqeMakkaZsFihOpyDajMCoOoJAGNVWkt7QVfzokc+LBAA7';
+			break;
+		case 'dir':
+			$gif = 'R0lGODlhFAAWAMIAAP/////Mmcz//5lmMzMzMwAAAAAAAAAAACH+TlRoaXMgYXJ0IGlzIGluIHRoZSBwdWJsaWMgZG9tYWluLiBLZXZpbiBIdWdoZXMsIGtldmluaEBlaXQuY29tLCBTZXB0ZW1iZXIgMTk5NQAh+QQBAAACACwAAAAAFAAWAAADVCi63P4wyklZufjOErrvRcR9ZKYpxUB6aokGQyzHKxyO9RoTV54PPJyPBewNSUXhcWc8soJOIjTaSVJhVphWxd3CeILUbDwmgMPmtHrNIyxM8Iw7AQA7';
+			break;
+		case 'ico':
+			$gif = 'R0lGODlhFAAWAKEAAP///8z//wAAAAAAACH+TlRoaXMgYXJ0IGlzIGluIHRoZSBwdWJsaWMgZG9tYWluLiBLZXZpbiBIdWdoZXMsIGtldmluaEBlaXQuY29tLCBTZXB0ZW1iZXIgMTk5NQAh+QQBAAABACwAAAAAFAAWAAACE4yPqcvtD6OctNqLs968+w+GSQEAOw==';
+			break;
+		case 'blank':
+			$gif = 'R0lGODlhFAAWAMIAAP///8z//8zMzJmZmTMzMwAAAAAAAAAAACH+TlRoaXMgYXJ0IGlzIGluIHRoZSBwdWJsaWMgZG9tYWluLiBLZXZpbiBIdWdoZXMsIGtldmluaEBlaXQuY29tLCBTZXB0ZW1iZXIgMTk5NQAh+QQBAAABACwAAAAAFAAWAAADaUi6vPEwEECrnSS+WQoQXSEAE6lxXgeopQmha+q1rhTfakHo/HaDnVFo6LMYKYPkoOADim4VJdOWkx2XvirUgqVaVcbuxCn0hKe04znrIV/ROOvaG3+z63OYO6/uiwlKgYJJOxFDh4hTCQA7';
+			break;
+		default:
+			$gif = false;
+			break;
+	}
+	return $gif;
 }
 
 $http_worker = new Worker("http://0.0.0.0:12101");
 $http_worker->count = 4;
 $http_worker->onMessage = function (TcpConnection $connection, Request $request) {
+	echo date("Y-m-d h:i:s ", time()) . $request->uri() . ' ';
 	$GLOBALS['time_start'] = microtime(true);
-	$go_back = '</br><img src="?gif=parentdir" alt="[PARENTDIR]"> <a href="#" onClick="javascript:history.go(-1);">返回上一页</a>';
-	if ($request->get('name')) {
-		switch ($request->get('name')) {
-			case 'parentdir':
-				$gif = 'R0lGODlhFAAWAMIAAP///8z//5mZmWZmZjMzMwAAAAAAAAAAACH+TlRoaXMgYXJ0IGlzIGluIHRoZSBwdWJsaWMgZG9tYWluLiBLZXZpbiBIdWdoZXMsIGtldmluaEBlaXQuY29tLCBTZXB0ZW1iZXIgMTk5NQAh+QQBAAABACwAAAAAFAAWAAADSxi63P4jEPJqEDNTu6LO3PVpnDdOFnaCkHQGBTcqRRxuWG0v+5LrNUZQ8QPqeMakkaZsFihOpyDajMCoOoJAGNVWkt7QVfzokc+LBAA7';
-				break;
-			case 'dir':
-				$gif = 'R0lGODlhFAAWAMIAAP/////Mmcz//5lmMzMzMwAAAAAAAAAAACH+TlRoaXMgYXJ0IGlzIGluIHRoZSBwdWJsaWMgZG9tYWluLiBLZXZpbiBIdWdoZXMsIGtldmluaEBlaXQuY29tLCBTZXB0ZW1iZXIgMTk5NQAh+QQBAAACACwAAAAAFAAWAAADVCi63P4wyklZufjOErrvRcR9ZKYpxUB6aokGQyzHKxyO9RoTV54PPJyPBewNSUXhcWc8soJOIjTaSVJhVphWxd3CeILUbDwmgMPmtHrNIyxM8Iw7AQA7';
-				break;
-			case 'ico':
-				$gif = 'R0lGODlhFAAWAKEAAP///8z//wAAAAAAACH+TlRoaXMgYXJ0IGlzIGluIHRoZSBwdWJsaWMgZG9tYWluLiBLZXZpbiBIdWdoZXMsIGtldmluaEBlaXQuY29tLCBTZXB0ZW1iZXIgMTk5NQAh+QQBAAABACwAAAAAFAAWAAACE4yPqcvtD6OctNqLs968+w+GSQEAOw==';
-				break;
-			case 'blank':
-				$gif = 'R0lGODlhFAAWAMIAAP///8z//8zMzJmZmTMzMwAAAAAAAAAAACH+TlRoaXMgYXJ0IGlzIGluIHRoZSBwdWJsaWMgZG9tYWluLiBLZXZpbiBIdWdoZXMsIGtldmluaEBlaXQuY29tLCBTZXB0ZW1iZXIgMTk5NQAh+QQBAAABACwAAAAAFAAWAAADaUi6vPEwEECrnSS+WQoQXSEAE6lxXgeopQmha+q1rhTfakHo/HaDnVFo6LMYKYPkoOADim4VJdOWkx2XvirUgqVaVcbuxCn0hKe04znrIV/ROOvaG3+z63OYO6/uiwlKgYJJOxFDh4hTCQA7';
-				break;
-			default:
-				$response = new Response(404);
-				break;
-		}
-		$response = new Response(200, [
-			'Content-Type' => 'image/gif'
-		], base64_decode($gif));
-		$connection->send($response);
-	}
+	$go_back = '</br><img src="?gif=parentdir" alt="[PARENTDIR]"> <a href="#" onClick="javascript:history.go(-1);">Back to last page.</a>';
+
 	$files = $request->file();
-	if (count($files) > 0) {
-		$topath = empty($_POST['topath']) ? '/' : $_POST['topath'];
+	if ($request->get('gif')) {
+		echo 'hit gif' . "\n";
+		$gif = get_gif($request->get('gif'));
+		if ($gif) {
+			$response = new Response(200, [
+				'Content-Type' => 'image/gif'
+			], base64_decode($gif));
+			$connection->send($response);
+		} else {
+			$connection->send(new Response(404));
+		}
+	} elseif (count($files) > 0) {
+		echo 'hit upload' . "\n";
+		$topath = $request->post('topath', '/');
 		if (substr($topath, '-1') !== '/')
 			$topath .= '/';
 		foreach ($files as $array) {
@@ -220,16 +233,8 @@ $http_worker->onMessage = function (TcpConnection $connection, Request $request)
 			}
 		}
 		$connection->send('Upload success.' . $go_back);
-	}
-	if (!isset($_GET['sort']))
-		$_GET['sort'] = false;
-	if (!isset($_GET['dir'])) {
-		$_GET['dir'] = '';
-	} else {
-		if (substr($_GET['dir'], '-1') !== '/')
-			$_GET['dir'] .= '/';
-	}
-	if ($request->get('download')) {
+	} elseif ($request->get('download')) {
+		echo 'hit leagcy download' . "\n";
 		if (is_readable($request->get('download'))) {
 			$response = (new Response())->withFile($request->get('download'));
 			$connection->send($response);
@@ -237,10 +242,21 @@ $http_worker->onMessage = function (TcpConnection $connection, Request $request)
 			$connection->send(new Response(404));
 		}
 	} elseif ($request->get('delete')) {
+		echo 'hit delete' . "\n";
 		unlink($GLOBALS['path'] . $request->get('delete'));
 		$connection->send('<script>history.go(-1)</script>');
+	} elseif (is_dir($request->path()) or is_file($request->path())) {
+		echo 'hit file or dir' . "\n";
+		if (is_file($request->path())) {
+			echo 'sending file to download' . "\n";
+			$response = (new Response())->withFile($request->path());
+			$connection->send($response);
+		} else {
+			$connection->send(get_full_html($request));
+		}
 	} else {
-		$connection->send(get_full_html($request->get('dir'), $request->get('sort'), $request));
+		echo 'not hit, return 403' . "\n";
+		$connection->send(new Response(403));
 	}
 };
 
