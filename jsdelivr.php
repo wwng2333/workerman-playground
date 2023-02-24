@@ -28,7 +28,8 @@ $http_worker->onMessage = function (TcpConnection $connection, Request $request)
             $res = '';
             foreach ($list as $addr) {
                 $url = sprintf('https://fastly.jsdelivr.net%s/%s', $request->path(), $addr);
-                $res .= Requests::get($url) . "\n";
+                $response = Requests::get($url);
+                $res .= $response->body . "\n";
             }
             $memcached->set($key_name, $res, 86400);
         }
