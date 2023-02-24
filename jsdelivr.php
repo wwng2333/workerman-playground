@@ -7,7 +7,7 @@ use SebastianBergmann\Timer\Timer;
 use WpOrg\Requests\Requests;
 
 require_once __DIR__ . '/vendor/autoload.php';
-
+define('UPSTREAM', ['/npm', '/gh']);
 $http_worker = new Worker("http://0.0.0.0:2334");
 $http_worker->count = 2;
 $http_worker->name = 'jsdelivr';
@@ -16,13 +16,13 @@ $http_worker->onMessage = function (TcpConnection $connection, Request $request)
     $memcached->addServer('localhost', 11211);
     $timer = new Timer;
     $timer->start();
-    if (($request->path() == '/npm' or $request->path() == '/gh') and $request->get('family')) {
+    if (in_array($request->path(), UPSTREAM) and $request->get('family')) {
         $key_name = md5($request->uri());
+        $is_cached = 'missedCache';
         if ($res = $memcached->get($key_name)) {
             $is_cached = 'cache; desc="Cache Read"';
             echo $request->uri() . " cache hit\n";
         } else {
-            $is_cached = 'missedCache';
             echo $request->uri() . " new query\n";
             $list = stristr($request->get('family'), '|') ? explode('|', $request->get('family')) : [$request->get('family')];
             $res = '';
