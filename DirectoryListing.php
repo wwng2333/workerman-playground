@@ -31,17 +31,17 @@ function disk_usage()
 	$total = disk_total_space(".");
 	$free = disk_free_space(".");
 	$used = round(($total - $free) / $total * 100, 2) . '%';
-	$html = '%s 可用, 共 %s, 使用率 %s</br>';
+	$html = '%s available of %s, %s used.</br>';
 	return sprintf($html, formatsize($free), formatsize($total), $used);
 }
 
 function get_ver($data)
 {
-	$_d = $data['server'];
+	//$_d = $data['server'];
 	$time_usage = round((microtime(true) - $GLOBALS['time_start']) * 1000, 4);
 	$mem_usage = round(memory_get_usage() / 1024 / 1024, 2);
 	$_s = "Processed in {$time_usage} ms , {$mem_usage} MB memory used.\n";
-	return disk_usage() . sprintf($_s . '</br>%s Server at %s Port %s', $_d['SERVER_SOFTWARE'], $_d['SERVER_NAME'], $_d['SERVER_PORT']);
+	return disk_usage() . sprintf($_s . '</br>Workerman %s Server at %s Port %s', Worker::VERSION, 'SERVER_NAME', 'SERVER_PORT');
 }
 
 function read_dir($dir, $sort = 'name', $order = SORT_DESC)
