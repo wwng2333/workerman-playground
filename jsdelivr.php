@@ -11,17 +11,17 @@ $http_worker = new Worker("http://0.0.0.0:2334");
 $http_worker->count = 2;
 $http_worker->name = 'jsdelivr';
 $http_worker->onMessage = function (TcpConnection $connection, Request $request) {
-    $memcache = new Memcache;
-    $memcache->connect('localhost', 11211);
+    $memcached = new Memcached();
+    $memcached->addServer('localhost', 11211);
     $timer = new Timer;
     $timer->start();
-    $is_cached = 'missedCache';
     if (($request->path() == '/npm' or $request->path() == '/gh') and $request->get('family')) {
         $key_name = md5($request->uri());
-        if ($res = $memcache->get($key_name)) {
+        if ($res = $memcached->get($key_name)) {
             $is_cached = 'cache; desc="Cache Read"';
             echo $request->uri() . " cache hit\n";
         } else {
+            $is_cached = 'missedCache';
             echo $request->uri() . " new query\n";
             $list = stristr($request->get('family'), '|') ? explode('|', $request->get('family')) : [$request->get('family')];
             $res = '';
@@ -29,9 +29,9 @@ $http_worker->onMessage = function (TcpConnection $connection, Request $request)
                 $url = sprintf('https://fastly.jsdelivr.net%s/%s', $request->path(), $addr);
                 $res .= curl($url) . "\n";
             }
-            $memcache->set($key_name, $res, MEMCACHE_COMPORESSED, 864400);
+            $memcached->set($key_name, $res, MEMCACHE_COMPORESSED, 864400);
         }
-        $memcache->close();
+        $memcached->quit();
         $response = new Response(200, [
             'Connection' => 'close',
             'Cache-control' => 'max-age=86400',
