@@ -8,10 +8,10 @@ use WpOrg\Requests\Requests;
 
 require_once __DIR__ . '/vendor/autoload.php';
 define('UPSTREAM', ['/npm', '/gh', '/wp']);
-$http_worker = new Worker("http://0.0.0.0:2334");
-$http_worker->count = 2;
-$http_worker->name = 'jsdelivr';
-$http_worker->onMessage = function (TcpConnection $connection, Request $request) {
+$jsdelivr_worker = new Worker("http://0.0.0.0:2334");
+$jsdelivr_worker->count = 2;
+$jsdelivr_worker->name = 'jsdelivr';
+$jsdelivr_worker->onMessage = function (TcpConnection $connection, Request $request) {
     $timer = new Timer;
     $timer->start();
     $memcached = new Memcached();
