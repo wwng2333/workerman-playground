@@ -13,15 +13,18 @@ $asn_reader = new Reader('/usr/local/share/GeoIP/GeoLite2-ASN.mmdb');
 $http_worker = new Worker("http://0.0.0.0:2335");
 $http_worker->count = 1;
 $http_worker->name = 'ip';
+
 $http_worker->onMessage = function (TcpConnection $connection, Request $request) {
+    $ip = ($request->header('X-Real-IP')) ? 
+        $request->header('X-Real-IP') : $connection->getRemoteIp();
     $timer = new Timer;
     $timer->start();
     global $city_reader, $asn_reader;
-    $city = $city_reader->city($connection->getRemoteIp());
-    $asn = $asn_reader->asn($connection->getRemoteIp());
+    $city = $city_reader->city($ip);
+    $asn = $asn_reader->asn($ip);
     $info = sprintf(
-        "%s\n%s / %s\nAS%s / %s\n\n%s",
-        $connection->getRemoteIp(),
+        "%s\n%s / %s\nAS%s / %s\n\n%s\n",
+        $ip,
         $city->country->isoCode,
         $city->country->name,
         $asn->autonomousSystemNumber,
@@ -29,8 +32,7 @@ $http_worker->onMessage = function (TcpConnection $connection, Request $request)
         $request->header()['user-agent']
     );
     $response = new Response(200, [
-        'Server' => 'Workerman '.Worker::VERSION,
-        'X-Powered-by' => 'github.com/wwng2333',
+        'Server' => 'Workerman ' . Worker::VERSION,
         'Connection' => 'close',
         'Content-Type' => 'text/plain; charset=UTF-8'
     ], $info);
