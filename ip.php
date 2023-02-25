@@ -36,8 +36,7 @@ $ip_worker->onMessage = function (TcpConnection $connection, Request $request) {
         'Connection' => 'close',
         'Content-Type' => 'text/plain; charset=UTF-8'
     ], $info);
-    $duration = $timer->stop();
-    $response->header('Server-Timing', $duration->asMilliseconds());
+    $response->header('Server-Timing', $timer->stop()->asMilliseconds());
     $connection->close($response);
 };
 
