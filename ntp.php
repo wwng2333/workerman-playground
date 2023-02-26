@@ -10,12 +10,16 @@ $GlobalData = new GlobalData\Server('127.0.0.1', 2207);
 $ntp_worker = new Worker('udp://127.0.0.1:123');
 $ntp_worker->name = 'NTP Service';
 $ntp_worker->onWorkerStart = function () {
+    global $global;
+    $global = new GlobalData\Client('127.0.0.1:2207');
+    $global->add('is_limited', false);
+    $global->add('query_now', 0);
     echo "Worker started!\n";
     $time_interval = 1;
     Timer::add(
         $time_interval,
         function () {
-            $global = new GlobalData\Client('127.0.0.1:2207');
+            global $global;
             echo "query:$global->query_now, is_limit:";
             echo $global->is_limited ? 1 : 0;
             echo "\nTimer act, clear list.\n";
@@ -26,12 +30,12 @@ $ntp_worker->onWorkerStart = function () {
     echo "Timer added!\n";
 };
 $ntp_worker->onMessage = function (UdpConnection $connection, $data) {
-    $global = new GlobalData\Client('127.0.0.1:2207');
+    global $global;
     $global->query_now++;
     if ($global->query_now > 2)
     {
         $global->is_limited = true;
-        $connection->close(0x00);
+        $connection->close(0x0);
     }
     if (!$global->is_limited and $connection->getRemoteIp()) {
         $NTP = new NTPLite();
