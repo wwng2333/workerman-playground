@@ -7,45 +7,43 @@ use Workerman\Timer;
 use Workerman\Connection\UdpConnection;
 
 $GlobalData = new GlobalData\Server('127.0.0.1', 2207);
-
-$is_limited = false;
-$query_now = 0;
-
-$ntp_limiter = new Worker();
-$ntp_limiter->count = 1;
-$ntp_limiter->name = 'NTP Limiter';
-$ntp_limiter->onWorkerStart = function(Worker $task)
-{
-    $time_interval = 1;
-    Timer::add($time_interval, function()
-    {
-        $global = new GlobalData\Client('127.0.0.1:2207');
-        echo "Timer act, clear list.\n";
-        $global->query_now = 0;
-        $global->is_limited = false;
-    });
-};
-
 $ntp_worker = new Worker('udp://127.0.0.1:123');
 $ntp_worker->name = 'NTP Service';
-$ntp_worker->onMessage = function($connection, $data){
+$ntp_worker->onWorkerStart = function () {
+    echo "Worker started!\n";
+    $time_interval = 1;
+    Timer::add(
+        $time_interval,
+        function () {
+            $global = new GlobalData\Client('127.0.0.1:2207');
+            echo "query:$global->query_now, is_limit:";
+            echo $global->is_limited ? 1 : 0;
+            echo "\nTimer act, clear list.\n";
+            $global->query_now = 0;
+            $global->is_limited = false;
+        }
+    );
+    echo "Timer added!\n";
+};
+$ntp_worker->onMessage = function (UdpConnection $connection, $data) {
     $global = new GlobalData\Client('127.0.0.1:2207');
     $global->query_now++;
-    var_dump($global->query_now, $global->is_limited);
-    if($global->query_now > 2) $global->is_limited = true;
-    if(!$global->is_limited and $connection->getRemoteIp())
+    if ($global->query_now > 2)
     {
+        $global->is_limited = true;
+        $connection->close(0x00);
+    }
+    if (!$global->is_limited and $connection->getRemoteIp()) {
         $NTP = new NTPLite();
-        if (!$NTP->readMessage($data)) 
-        {
+        if (!$NTP->readMessage($data)) {
             $hex = '';
             for ($i = 0; $i < strlen($data); $i++) {
                 $hex .= sprintf('%02x', ord($data[$i]));
             }
             echo "Bad request, aborted\n$hex\n";
         } else {
-            $NTP->dump();
-            echo "\n", $NTP;
+            //$NTP->dump();
+            //echo "\n", $NTP;
             $NTP->leapIndicator = 0;
             $NTP->mode = 4;
             $NTP->stratum = 6;
@@ -56,12 +54,13 @@ $ntp_worker->onMessage = function($connection, $data){
             $now = new DateTime(NULL);
             $NTP->referenceTimestamp = NTPLite::convertDateTimeToSntp($now);
             $NTP->originateTimestamp = $NTP->transmitTimestamp;
-            $NTP->receiveTimestamp   = NTPLite::convertDateTimeToSntp($now);
-            $NTP->transmitTimestamp  = NTPLite::convertDateTimeToSntp($now);
-
-            $connection->close($NTP->writeMessage());
+            $NTP->receiveTimestamp = NTPLite::convertDateTimeToSntp($now);
+            $NTP->transmitTimestamp = NTPLite::convertDateTimeToSntp($now);
+            $message = $NTP->writeMessage();
             unset($NTP);
+            $connection->close($message);
         }
     }
 };
+
 Worker::runAll();
