@@ -50,7 +50,7 @@ $ntp_worker->onMessage = function (UdpConnection $connection, $data) {
             //echo "\n", $NTP;
             $NTP->leapIndicator = 0;
             $NTP->mode = 4;
-            $NTP->stratum = 6;
+            $NTP->stratum = 3;
             $NTP->precision = -20;
             $NTP->rootDelay = 0;
             $NTP->rootDispersion = 0.0120;
