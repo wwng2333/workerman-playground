@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/vendor/autoload.php';
-require_once __DIR__ . '/NTPLite.php';
+require_once __DIR__ . '/lib/NTPLite.php';
 
 use Workerman\Worker;
 use Workerman\Timer;
