@@ -12,6 +12,13 @@ $jsdelivr_worker = new Worker("http://0.0.0.0:2334");
 $jsdelivr_worker->count = 2;
 $jsdelivr_worker->name = 'jsdelivr';
 $jsdelivr_worker->onMessage = function (TcpConnection $connection, Request $request) {
+    if ($request->path() === '/myipv4addr') {
+        $ip = ($request->header('X-Real-IP')) ? 
+            $request->header('X-Real-IP') : $connection->getRemoteIp();
+        $text = sprintf('var ipv4addr= document.getElementById("ipv4addr"); ipv4addr.innerHTML=%s', $ip);
+        $response = new Response(200, ['Content-Type' => 'text/javascript'], $text);
+        $connection->close($response);
+    }
     if ($request->path() === '/generate_204') {
         $generate_204_response = new Response(204, [
             'X-Powered-by' => 'github.com/wwng2333/generate_204',
@@ -58,4 +65,6 @@ $jsdelivr_worker->onMessage = function (TcpConnection $connection, Request $requ
     $connection->close($response);
 };
 
-Worker::runAll();
+if (!defined('GLOBAL_START')) {
+    Worker::runAll();
+}
