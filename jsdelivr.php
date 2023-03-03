@@ -15,7 +15,7 @@ $jsdelivr_worker->onMessage = function (TcpConnection $connection, Request $requ
     if ($request->path() === '/myipv4addr') {
         $ip = ($request->header('X-Real-IP')) ? 
             $request->header('X-Real-IP') : $connection->getRemoteIp();
-        $text = sprintf('var ipv4addr= document.getElementById("ipv4addr"); ipv4addr.innerHTML=%s', $ip);
+        $text = sprintf('var ipv4addr= document.getElementById("ipv4addr"); ipv4addr.innerHTML=\'%s\'', $ip);
         $response = new Response(200, ['Content-Type' => 'text/javascript'], $text);
         $connection->close($response);
     }
