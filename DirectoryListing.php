@@ -15,18 +15,18 @@ if (substr($GLOBALS['path'], '-1') !== '/')
 class CrazyList
 {
 	private function formatsize($size, $key = 0)
-{
-	if ($size < 0) {
-		return '0B';
-	} else {
-		$danwei = array('B', 'K', 'M', 'G', 'T', 'P');
-		while ($size > 1024) {
-			$size = $size / 1024;
-			$key++;
+	{
+		if ($size < 0) {
+			return '0B';
+		} else {
+			$danwei = array('B', 'K', 'M', 'G', 'T', 'P');
+			while ($size > 1024) {
+				$size = $size / 1024;
+				$key++;
+			}
+			return round($size, 1) . $danwei[$key];
 		}
-		return round($size, 1) . $danwei[$key];
 	}
-}
 	private function disk_usage()
 	{
 		$total = disk_total_space(".");
@@ -187,7 +187,7 @@ class CrazyList
 		return sprintf($template, $table, "Total {$GLOBALS['total_files']} file(s), {$GLOBALS['total_size']}; " . $this->get_ver($data->host()));
 	}
 
-	function get_gif($name)
+	public static function get_gif($name)
 	{
 		switch ($name) {
 			case 'parentdir':
@@ -221,7 +221,7 @@ $http_worker->onMessage = function (TcpConnection $connection, Request $request)
 	$files = $request->file();
 	if ($request->get('gif')) {
 		echo 'hit gif' . "\n";
-		$gif = get_gif($request->get('gif'));
+		$gif = CrazyList::get_gif($request->get('gif'));
 		if ($gif) {
 			$response = new Response(200, [
 				'Content-Type' => 'image/gif'
