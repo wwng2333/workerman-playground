@@ -243,14 +243,6 @@ $http_worker->onMessage = function (TcpConnection $connection, Request $request)
 			}
 		}
 		$connection->send('Upload success.' . $go_back);
-	} elseif ($request->get('download')) {
-		echo 'hit leagcy download' . "\n";
-		if (is_readable($request->get('download'))) {
-			$response = (new Response())->withFile($request->get('download'));
-			$connection->send($response);
-		} else {
-			$connection->send(new Response(404));
-		}
 	} elseif ($request->get('delete')) {
 		echo 'hit delete' . "\n";
 		unlink($GLOBALS['path'] . $request->get('delete'));
@@ -262,7 +254,8 @@ $http_worker->onMessage = function (TcpConnection $connection, Request $request)
 			$response = (new Response())->withFile($request->path());
 			$connection->send($response);
 		} else {
-			$connection->send(CrazyList::get_full_html($request));
+			$crazy = new CrazyList();
+			$connection->send($crazy->get_full_html($request));
 		}
 	} else {
 		echo 'not hit, return 403' . "\n";
