@@ -14,6 +14,7 @@ if (substr($GLOBALS['path'], '-1') !== '/')
 
 class CrazyList
 {
+	private $RealPath = '';
 	public $FullHtml = '';
 	public static $GoBackHtml = '</br><img src="?gif=parentdir" alt="[PARENTDIR]"> <a href="#" onClick="javascript:history.go(-1);">Back to last page.</a>';
 	private $StartTime = 0;
@@ -25,6 +26,7 @@ class CrazyList
 	{
 		$this->StartTime = microtime(true);
 		$this->Request = $request;
+		$this->RealPath = $this->RemoveTooManySlash($GLOBALS['path'] . $this->Request->path() . '/');
 	}
 	private function formatsize($size, $key = 0)
 	{
@@ -124,9 +126,8 @@ class CrazyList
 		}
 	}
 
-	private function link_to($mode, $real_path, $name)
+	private function LinkTo($mode, $real_path, $name)
 	{
-		//$real_path = urlencode($real_path);
 		if ($mode == 'dir') {
 			$real_path .= '/';
 			$name .= '/';
@@ -155,16 +156,16 @@ class CrazyList
 		}
 		for ($i = 0; $i < count($array['name']); $i++) {
 			$name = $array['name'][$i];
-			$real_path = $this->remove_too_many_slash($dir . $name);
+			$real_path = $this->RemoveTooManySlash($dir . $name);
 			if ($array['dir'][$i]) {
 				$mtime_now = date("Y-m-d H:i", $array['mtime'][$i]);
-				$str .= $this->html('tr') . $this->gif('dir', 'DIR') . $this->html('td') . $this->link_to('dir', $real_path, $name) . $this->html('td');
+				$str .= $this->html('tr') . $this->gif('dir', 'DIR') . $this->html('td') . $this->LinkTo('dir', $real_path, $name) . $this->html('td');
 				$str .= $this->mtime($mtime_now) . $this->size('-') . $this->del($real_path) . $this->html('tr');
 				$this->TotalFiles++;
 			} else {
 				$size_now = $this->formatsize($array['size'][$i]);
 				$mtime_now = date("Y-m-d H:i", $array['mtime'][$i]);
-				$str .= $this->html('tr') . $this->gif('blank', '   ') . $this->html('td') . $this->link_to('download', $real_path, $name) . $this->html('td');
+				$str .= $this->html('tr') . $this->gif('blank', '   ') . $this->html('td') . $this->LinkTo('download', $real_path, $name) . $this->html('td');
 				$str .= $this->mtime($mtime_now) . $this->size($size_now) . $this->del($real_path) . $this->html('tr');
 				$this->TotalFiles++;
 				$this->TotalSize += $array['size'][$i];
@@ -175,21 +176,20 @@ class CrazyList
 
 	private function GenerateUploadHtml($path)
 	{
-		$real_path = $this->remove_too_many_slash($GLOBALS['path'] . $path);
-		return '<form action="upload" method="post" enctype="multipart/form-data"><input type="hidden" name="topath"  value="' . $real_path . '" /><input type="file" name="file" id="file" /><input type="submit" name="submit" value="上传" /></form>';
+		return '<form action="upload" method="post" enctype="multipart/form-data"><input type="hidden" name="topath"  value="' . $this->RealPath . '" /><input type="file" name="file" id="file" /><input type="submit" name="submit" value="上传" /></form>';
 	}
 
-	private function remove_too_many_slash($input)
+	private function RemoveTooManySlash($input)
 	{
 		while (substr_count($input, '//') > 0)
 			$input = str_replace('//', '/', $input);
 		return $input;
 	}
-	public function GenerateFullHtml()
+	public function GenerateOutputHtml()
 	{
 		$path = $this->Request->path();
 		$sort = $this->Request->get('sort');
-		$real_path = $this->remove_too_many_slash($GLOBALS['path'] . $path . '/');
+		$real_path = $this->RealPath;
 		$table = $this->make_list($real_path, $this->read_dir($real_path, $sort), $path);
 		$this->TotalSize = $this->formatsize($this->TotalSize);
 		$header = "<!DOCTYPE html PUBLIC \"-//WAPFORUM//DTD XHTML Mobile 1.0//EN\" \"http://www.wapforum.org/DTD/xhtml-mobile10.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n<head>\n<title>%s 的索引</title>\n<style type=\"text/css\" media=\"screen\">pre{background:0 0}body{margin:2em}tb{width:600px;margin:0 auto}</style>\n<script>if(window.name!=\"bencalie\"){location.reload();window.name=\"bencalie\"}else{window.name=\"\"}function del(){return confirm('Really delete?')}</script>\n</head>\n<body>\n<strong>$real_path 的索引</strong>\n";
@@ -263,7 +263,7 @@ $http_worker->onMessage = function (TcpConnection $connection, Request $request)
 			$connection->send($response);
 		} else {
 			$crazy = new CrazyList($request);
-			$crazy->GenerateFullHtml();
+			$crazy->GenerateOutputHtml();
 			$connection->send($crazy->FullHtml);
 		}
 	} else {
