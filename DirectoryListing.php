@@ -14,6 +14,18 @@ if (substr($GLOBALS['path'], '-1') !== '/')
 
 class CrazyList
 {
+	public $FullHtml = '';
+	public static $GoBackHtml = '</br><img src="?gif=parentdir" alt="[PARENTDIR]"> <a href="#" onClick="javascript:history.go(-1);">Back to last page.</a>';
+	private $StartTime = 0;
+	private $Request = array();
+	private $HtmlTempArr = array();
+	public $TotalSize = 0;
+	public $TotalFiles = 0;
+	public function __construct($request)
+	{
+		$this->StartTime = microtime(true);
+		$this->Request = $request;
+	}
 	private function formatsize($size, $key = 0)
 	{
 		if ($size < 0) {
@@ -39,7 +51,7 @@ class CrazyList
 	private function get_ver($data)
 	{
 		list($host, $port) = explode(':', $data);
-		$time_usage = round((microtime(true) - $GLOBALS['time_start']) * 1000, 4);
+		$time_usage = round((microtime(true) - $this->StartTime) * 1000, 4);
 		$mem_usage = round(memory_get_usage() / 1024 / 1024, 2);
 		$_s = "Processed in {$time_usage} ms , {$mem_usage} MB memory used.\n";
 		return $this->disk_usage() . sprintf($_s . '</br>Workerman %s Server at %s Port %s', Worker::VERSION, $host, $port);
@@ -49,7 +61,7 @@ class CrazyList
 	{
 		$list = scandir($dir);
 		unset($list[0], $list[1]);
-		foreach ($list as $k => $name) {
+		foreach ($list as $name) {
 			$file_name[] = $name;
 			$real_path = $dir . '/' . $name;
 			$is_dir[] = @scandir($real_path) ? true : false;
@@ -100,13 +112,14 @@ class CrazyList
 
 	private function html($what)
 	{
-		if (!isset($GLOBALS[$what]))
-			$GLOBALS[$what] = false;
-		if ($GLOBALS[$what]) {
-			$GLOBALS[$what] = false;
+		$arr = $this->HtmlTempArr;
+		if (!isset($arr[$what]))
+			$arr[$what] = false;
+		if ($arr[$what]) {
+			$arr[$what] = false;
 			return "</$what>";
 		} else {
-			$GLOBALS[$what] = true;
+			$arr[$what] = true;
 			return "<$what>";
 		}
 	}
@@ -127,8 +140,8 @@ class CrazyList
 			return false;
 		$path = rtrim($path, '/');
 		$str = '';
-		$GLOBALS['total_files'] = 0;
-		$GLOBALS['total_size'] = 0;
+		$this->TotalFiles = 0;
+		$this->TotalSize = 0;
 		if (!empty($path)) {
 			$tmp = explode('/', $path);
 			if (count($tmp) == 2) {
@@ -147,20 +160,20 @@ class CrazyList
 				$mtime_now = date("Y-m-d H:i", $array['mtime'][$i]);
 				$str .= $this->html('tr') . $this->gif('dir', 'DIR') . $this->html('td') . $this->link_to('dir', $real_path, $name) . $this->html('td');
 				$str .= $this->mtime($mtime_now) . $this->size('-') . $this->del($real_path) . $this->html('tr');
-				$GLOBALS['total_files']++;
+				$this->TotalFiles++;
 			} else {
 				$size_now = $this->formatsize($array['size'][$i]);
 				$mtime_now = date("Y-m-d H:i", $array['mtime'][$i]);
 				$str .= $this->html('tr') . $this->gif('blank', '   ') . $this->html('td') . $this->link_to('download', $real_path, $name) . $this->html('td');
 				$str .= $this->mtime($mtime_now) . $this->size($size_now) . $this->del($real_path) . $this->html('tr');
-				$GLOBALS['total_files']++;
-				$GLOBALS['total_size'] += $array['size'][$i];
+				$this->TotalFiles++;
+				$this->TotalSize += $array['size'][$i];
 			}
 		}
 		return $str;
 	}
 
-	private function generate_upload_html($path)
+	private function GenerateUploadHtml($path)
 	{
 		$real_path = $this->remove_too_many_slash($GLOBALS['path'] . $path);
 		return '<form action="upload" method="post" enctype="multipart/form-data"><input type="hidden" name="topath"  value="' . $real_path . '" /><input type="file" name="file" id="file" /><input type="submit" name="submit" value="上传" /></form>';
@@ -172,22 +185,22 @@ class CrazyList
 			$input = str_replace('//', '/', $input);
 		return $input;
 	}
-	public function get_full_html($data)
+	public function GenerateFullHtml()
 	{
-		$path = $data->path();
-		$sort = $data->get('sort');
+		$path = $this->Request->path();
+		$sort = $this->Request->get('sort');
 		$real_path = $this->remove_too_many_slash($GLOBALS['path'] . $path . '/');
 		$table = $this->make_list($real_path, $this->read_dir($real_path, $sort), $path);
-		$GLOBALS['total_size'] = $this->formatsize($GLOBALS['total_size']);
+		$this->TotalSize = $this->formatsize($this->TotalSize);
 		$header = "<!DOCTYPE html PUBLIC \"-//WAPFORUM//DTD XHTML Mobile 1.0//EN\" \"http://www.wapforum.org/DTD/xhtml-mobile10.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n<head>\n<title>%s 的索引</title>\n<style type=\"text/css\" media=\"screen\">pre{background:0 0}body{margin:2em}tb{width:600px;margin:0 auto}</style>\n<script>if(window.name!=\"bencalie\"){location.reload();window.name=\"bencalie\"}else{window.name=\"\"}function del(){return confirm('Really delete?')}</script>\n</head>\n<body>\n<strong>$real_path 的索引</strong>\n";
-		$footer = $this->generate_upload_html($path) . "<address>%s</address>\n</body>\n</html>";
+		$footer = $this->GenerateUploadHtml($path) . "<address>%s</address>\n</body>\n</html>";
 		$template = sprintf($header, $real_path) . "<table><th><img src=\"?gif=ico\" alt=\"[ICO]\"></th><th><a href=\"?dir=$real_path&sort=name\">名称</a></th><th><a href=\"?dir=$real_path&sort=mtime\">最后更改</a></th><th><a href=\"?dir=$real_path&sort=size\">大小</a></th></tr><tr><th colspan=\"6\"><hr></th></tr>%s<tr><th colspan=\"6\"><hr></th></tr></table>" . $footer;
 		if (!$table)
-			return sprintf(sprintf($header, $real_path) . '<p>No files.</p>' . $footer, $this->get_ver($data->host()));
-		return sprintf($template, $table, "Total {$GLOBALS['total_files']} file(s), {$GLOBALS['total_size']}; " . $this->get_ver($data->host()));
+			$this->FullHtml = sprintf(sprintf($header, $real_path) . '<p>No files.</p>' . $footer, $this->get_ver($this->Request->host()));
+		$this->FullHtml = sprintf($template, $table, "Total {$this->TotalFiles} file(s), {$this->TotalSize}; " . $this->get_ver($this->Request->host()));
 	}
 
-	public static function get_gif($name)
+	public static function GenerateGIF($name)
 	{
 		switch ($name) {
 			case 'parentdir':
@@ -215,14 +228,9 @@ $http_worker = new Worker("http://0.0.0.0:12101");
 $http_worker->count = 4;
 $http_worker->onMessage = function (TcpConnection $connection, Request $request) {
 	echo date("Y-m-d h:i:s ", time()) . $request->uri() . ' ';
-	$GLOBALS['time_start'] = microtime(true);
-	$go_back = '</br><img src="?gif=parentdir" alt="[PARENTDIR]"> <a href="#" onClick="javascript:history.go(-1);">Back to last page.</a>';
-
-	$files = $request->file();
 	if ($request->get('gif')) {
 		echo 'hit gif' . "\n";
-		$gif = CrazyList::get_gif($request->get('gif'));
-		if ($gif) {
+		if ($gif = CrazyList::GenerateGIF($request->get('gif'))) {
 			$response = new Response(200, [
 				'Content-Type' => 'image/gif'
 			], base64_decode($gif));
@@ -230,7 +238,7 @@ $http_worker->onMessage = function (TcpConnection $connection, Request $request)
 		} else {
 			$connection->send(new Response(404));
 		}
-	} elseif (count($files) > 0) {
+	} elseif (count($files = $request->file()) > 0) {
 		echo 'hit upload' . "\n";
 		$topath = $request->post('topath', '/');
 		if (substr($topath, '-1') !== '/')
@@ -239,10 +247,10 @@ $http_worker->onMessage = function (TcpConnection $connection, Request $request)
 			if ($array['error'] === UPLOAD_ERR_OK) {
 				rename($array['tmp_name'], $topath . $array['name']);
 			} else {
-				$connection->send('Upload failed.' . $go_back);
+				$connection->send('Upload failed.' . CrazyList::$GoBackHtml);
 			}
 		}
-		$connection->send('Upload success.' . $go_back);
+		$connection->send('Upload success.' . CrazyList::$GoBackHtml);
 	} elseif ($request->get('delete')) {
 		echo 'hit delete' . "\n";
 		unlink($GLOBALS['path'] . $request->get('delete'));
@@ -254,8 +262,9 @@ $http_worker->onMessage = function (TcpConnection $connection, Request $request)
 			$response = (new Response())->withFile($request->path());
 			$connection->send($response);
 		} else {
-			$crazy = new CrazyList();
-			$connection->send($crazy->get_full_html($request));
+			$crazy = new CrazyList($request);
+			$crazy->GenerateFullHtml();
+			$connection->send($crazy->FullHtml);
 		}
 	} else {
 		echo 'not hit, return 403' . "\n";
