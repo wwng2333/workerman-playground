@@ -14,6 +14,7 @@ if (substr($GLOBALS['path'], '-1') !== '/')
 
 class CrazyList
 {
+	private $FakePath = '';
 	private $RealPath = '';
 	public $FullHtml = '';
 	public static $GoBackHtml = '</br><img src="?gif=parentdir" alt="[PARENTDIR]"> <a href="#" onClick="javascript:history.go(-1);">Back to last page.</a>';
@@ -26,7 +27,8 @@ class CrazyList
 	{
 		$this->StartTime = microtime(true);
 		$this->Request = $request;
-		$this->RealPath = $this->RemoveTooManySlash($GLOBALS['path'] . $this->Request->path() . '/');
+		$this->FakePath = $this->Request->path();
+		$this->RealPath = $this->RemoveTooManySlash($GLOBALS['path'] . $this->FakePath . '/');
 	}
 	private function formatsize($size, $key = 0)
 	{
@@ -59,8 +61,11 @@ class CrazyList
 		return $this->disk_usage() . sprintf($_s . '</br>Workerman %s Server at %s Port %s', Worker::VERSION, $host, $port);
 	}
 
-	private function read_dir($dir, $sort = 'name', $order = SORT_DESC)
+	private function ReadDirToArray()
 	{
+		$order = SORT_DESC;
+		$dir = $this->RealPath;
+		$sort = $this->Request->get('sort');
 		$list = scandir($dir);
 		unset($list[0], $list[1]);
 		foreach ($list as $name) {
@@ -102,17 +107,17 @@ class CrazyList
 		return "<td align=\"right\"> $mtime</td>\n";
 	}
 
-	private function size($size)
+	private function HtmlSize($size)
 	{
 		return "<td align=\"right\"> $size</td><td>&nbsp;</td>\n";
 	}
 
-	private function gif($gif, $alt)
+	private function HtmlGIF($gif, $alt)
 	{
 		return "<td><img src=\"?gif={$gif}\" alt=\"[{$alt}]\"></td>";
 	}
 
-	private function html($what)
+	private function HtmlLab($what)
 	{
 		$arr = $this->HtmlTempArr;
 		if (!isset($arr[$what]))
@@ -126,7 +131,7 @@ class CrazyList
 		}
 	}
 
-	private function LinkTo($mode, $real_path, $name)
+	private function HtmlLinkTo($mode, $real_path, $name)
 	{
 		if ($mode == 'dir') {
 			$real_path .= '/';
@@ -135,15 +140,13 @@ class CrazyList
 		return "<a href=\"$real_path\">$name</a>";
 	}
 
-	private function make_list($dir, $array, $path)
+	private function MakeFileList()
 	{
+		$array = $this->ReadDirToArray();
 		if (!$array)
 			return false;
-		$path = rtrim($path, '/');
 		$str = '';
-		$this->TotalFiles = 0;
-		$this->TotalSize = 0;
-		if (!empty($path)) {
+		if (!empty($path = rtrim($this->FakePath, '/'))) {
 			$tmp = explode('/', $path);
 			if (count($tmp) == 2) {
 				$tmp = '/';
@@ -156,17 +159,14 @@ class CrazyList
 		}
 		for ($i = 0; $i < count($array['name']); $i++) {
 			$name = $array['name'][$i];
-			$real_path = $this->RemoveTooManySlash($dir . $name);
+			$real_path = $this->RemoveTooManySlash($this->RealPath . $name);
 			if ($array['dir'][$i]) {
-				$mtime_now = date("Y-m-d H:i", $array['mtime'][$i]);
-				$str .= $this->html('tr') . $this->gif('dir', 'DIR') . $this->html('td') . $this->LinkTo('dir', $real_path, $name) . $this->html('td');
-				$str .= $this->mtime($mtime_now) . $this->size('-') . $this->del($real_path) . $this->html('tr');
+				$str .= $this->HtmlLab('tr') . $this->HtmlGIF('dir', 'DIR') . $this->HtmlLab('td') . $this->HtmlLinkTo('dir', $real_path, $name) . $this->HtmlLab('td');
+				$str .= $this->mtime(date("Y-m-d H:i", $array['mtime'][$i])) . $this->HtmlSize('-') . $this->del($real_path) . $this->HtmlLab('tr');
 				$this->TotalFiles++;
 			} else {
-				$size_now = $this->formatsize($array['size'][$i]);
-				$mtime_now = date("Y-m-d H:i", $array['mtime'][$i]);
-				$str .= $this->html('tr') . $this->gif('blank', '   ') . $this->html('td') . $this->LinkTo('download', $real_path, $name) . $this->html('td');
-				$str .= $this->mtime($mtime_now) . $this->size($size_now) . $this->del($real_path) . $this->html('tr');
+				$str .= $this->HtmlLab('tr') . $this->HtmlGIF('blank', '   ') . $this->HtmlLab('td') . $this->HtmlLinkTo('download', $real_path, $name) . $this->HtmlLab('td');
+				$str .= $this->mtime(date("Y-m-d H:i", $array['mtime'][$i])) . $this->HtmlSize($this->formatsize($array['size'][$i])) . $this->del($real_path) . $this->HtmlLab('tr');
 				$this->TotalFiles++;
 				$this->TotalSize += $array['size'][$i];
 			}
@@ -174,7 +174,7 @@ class CrazyList
 		return $str;
 	}
 
-	private function GenerateUploadHtml($path)
+	private function GenerateUploadHtml()
 	{
 		return '<form action="upload" method="post" enctype="multipart/form-data"><input type="hidden" name="topath"  value="' . $this->RealPath . '" /><input type="file" name="file" id="file" /><input type="submit" name="submit" value="上传" /></form>';
 	}
@@ -187,20 +187,17 @@ class CrazyList
 	}
 	public function GenerateOutputHtml()
 	{
-		$path = $this->Request->path();
-		$sort = $this->Request->get('sort');
-		$real_path = $this->RealPath;
-		$table = $this->make_list($real_path, $this->read_dir($real_path, $sort), $path);
+		$table = $this->MakeFileList();
 		$this->TotalSize = $this->formatsize($this->TotalSize);
-		$header = "<!DOCTYPE html PUBLIC \"-//WAPFORUM//DTD XHTML Mobile 1.0//EN\" \"http://www.wapforum.org/DTD/xhtml-mobile10.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n<head>\n<title>%s 的索引</title>\n<style type=\"text/css\" media=\"screen\">pre{background:0 0}body{margin:2em}tb{width:600px;margin:0 auto}</style>\n<script>if(window.name!=\"bencalie\"){location.reload();window.name=\"bencalie\"}else{window.name=\"\"}function del(){return confirm('Really delete?')}</script>\n</head>\n<body>\n<strong>$real_path 的索引</strong>\n";
-		$footer = $this->GenerateUploadHtml($path) . "<address>%s</address>\n</body>\n</html>";
-		$template = sprintf($header, $real_path) . "<table><th><img src=\"?gif=ico\" alt=\"[ICO]\"></th><th><a href=\"?dir=$real_path&sort=name\">名称</a></th><th><a href=\"?dir=$real_path&sort=mtime\">最后更改</a></th><th><a href=\"?dir=$real_path&sort=size\">大小</a></th></tr><tr><th colspan=\"6\"><hr></th></tr>%s<tr><th colspan=\"6\"><hr></th></tr></table>" . $footer;
+		$header = "<!DOCTYPE html PUBLIC \"-//WAPFORUM//DTD XHTML Mobile 1.0//EN\" \"http://www.wapforum.org/DTD/xhtml-mobile10.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n<head>\n<title>%s 的索引</title>\n<style type=\"text/css\" media=\"screen\">pre{background:0 0}body{margin:2em}tb{width:600px;margin:0 auto}</style>\n<script>if(window.name!=\"bencalie\"){location.reload();window.name=\"bencalie\"}else{window.name=\"\"}function del(){return confirm('Really delete?')}</script>\n</head>\n<body>\n<strong>$this->RealPath 的索引</strong>\n";
+		$footer = $this->GenerateUploadHtml() . "<address>%s</address>\n</body>\n</html>";
+		$template = sprintf($header, $this->RealPath) . "<table><th><img src=\"?gif=ico\" alt=\"[ICO]\"></th><th><a href=\"?dir=$this->RealPath&sort=name\">名称</a></th><th><a href=\"?dir=$this->RealPath&sort=mtime\">最后更改</a></th><th><a href=\"?dir=$this->RealPath&sort=size\">大小</a></th></tr><tr><th colspan=\"6\"><hr></th></tr>%s<tr><th colspan=\"6\"><hr></th></tr></table>" . $footer;
 		if (!$table)
-			$this->FullHtml = sprintf(sprintf($header, $real_path) . '<p>No files.</p>' . $footer, $this->get_ver($this->Request->host()));
+			$this->FullHtml = sprintf(sprintf($header, $this->RealPath) . '<p>No files.</p>' . $footer, $this->get_ver($this->Request->host()));
 		$this->FullHtml = sprintf($template, $table, "Total {$this->TotalFiles} file(s), {$this->TotalSize}; " . $this->get_ver($this->Request->host()));
 	}
 
-	public static function GenerateGIF($name)
+	public static function OutputGIF($name)
 	{
 		switch ($name) {
 			case 'parentdir':
@@ -221,20 +218,18 @@ class CrazyList
 		}
 		return $gif;
 	}
-
 }
 
 $http_worker = new Worker("http://0.0.0.0:12101");
-$http_worker->count = 4;
+$http_worker->name = 'Crazy List';
 $http_worker->onMessage = function (TcpConnection $connection, Request $request) {
 	echo date("Y-m-d h:i:s ", time()) . $request->uri() . ' ';
 	if ($request->get('gif')) {
 		echo 'hit gif' . "\n";
-		if ($gif = CrazyList::GenerateGIF($request->get('gif'))) {
-			$response = new Response(200, [
+		if ($gif = CrazyList::OutputGIF($request->get('gif'))) {
+			$connection->send(new Response(200, [
 				'Content-Type' => 'image/gif'
-			], base64_decode($gif));
-			$connection->send($response);
+			], base64_decode($gif)));
 		} else {
 			$connection->send(new Response(404));
 		}
