@@ -43,16 +43,12 @@ $http_worker->onMessage = function (TcpConnection $connection, Request $request)
             break;
         default:
             $text = '<!DOCTYPE html><html lang="en"><head><title>Crazy Web Clock</title><meta charset="utf-8"><meta name="viewport"content="width=device-width, initial-scale=1.0"><meta name="author"content="Michael Lee"><link rel="shortcut icon"href="/includes/favicon.ico"type="image/ico"><link crossorigin="anonymous"integrity="sha384-i/ZLCOBtDmoxztrtShNvc3vGe1+IbOGDzkZNC4KLXurv/BT7QInnM2AsPnvbgXH/"href="https://lib.baomitu.com/normalize/5.0.0/normalize.min.css"rel="stylesheet"><link href="./local.min.css"rel="stylesheet"type="text/css"></head><body><div class="container"><h1 class="boxtop"id="sec-clock"><a href="/"><span class="hidephone">Crazy</span> Web Clock</a></h1><div class="box"><table><tr><th>Server</th><td id="server"><em class="red">This clock requires JavaScript.</em></td></tr><tr><th>Client</th><td id="client"></td></tr><tr><th class="nobr">Time Zone</th><td id="timezone"></td></tr><tr><th>Offset</th><td id="offset"></td></tr><tr><th>Delay</th><td id="delay"></td></tr></table></div><div class="copyright"><p>Copyright&copy;2011&ndash;2023 Michael Lee, Edited by wwng</p><p>%s</p></div></div><script src="./ServerDate.php"></script><script src="./local.js"></script><script>ServerDate.amortizationThreshold=0;setTimeout(resetAmortization,1000*5);updateClocks();updateMetaData(true);setTimeout(updateMetaData,1000*2);setInterval(updateClocks,25);setInterval(updateMetaData,1000*60*5);</script></body></html>';
-            list($host, $port) = explode(':', $request->host());
             $time_usage = round((microtime(true) - $GLOBALS['time_start']) * 1000, 4);
             $mem_usage = round(memory_get_usage() / 1024 / 1024, 2);
             $_s = "Processed in {$time_usage} ms , {$mem_usage} MB memory used.\n";
-            $version = sprintf($_s . '</br>Workerman %s Server at %s Port %s', Worker::VERSION, $host, $port);
+            $version = sprintf($_s . '</br>Workerman %s Server at %s', Worker::VERSION, $request->header()['x-forwarded-host']);
             $connection->send(sprintf($text, $version));
     }
 };
 
-if (!defined('GLOBAL_START')) {
-    Worker::runAll();
-}
-
+Worker::runAll();
