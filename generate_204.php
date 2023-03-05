@@ -19,4 +19,6 @@ $generate_204_worker->onMessage = function (TcpConnection $connection, Request $
     $connection->close($generate_204_response);
 };
 
-Worker::runAll();
+if (!defined('GLOBAL_START')) {
+    Worker::runAll();
+}
