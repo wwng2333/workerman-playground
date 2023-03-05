@@ -11,4 +11,7 @@ $udp_worker->onMessage = function ($connection, $data) {
         file_put_contents($file, $data, FILE_APPEND | LOCK_EX);
     }
 };
-Worker::runAll();
+
+if (!defined('GLOBAL_START')) {
+    Worker::runAll();
+}
