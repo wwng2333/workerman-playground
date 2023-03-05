@@ -40,4 +40,6 @@ $ip_worker->onMessage = function (TcpConnection $connection, Request $request) {
     $connection->close($response);
 };
 
-Worker::runAll();
+if (!defined('GLOBAL_START')) {
+    Worker::runAll();
+}
