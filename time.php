@@ -51,4 +51,6 @@ $http_worker->onMessage = function (TcpConnection $connection, Request $request)
     }
 };
 
-Worker::runAll();
+if (!defined('GLOBAL_START')) {
+    Worker::runAll();
+}
