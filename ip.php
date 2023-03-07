@@ -7,30 +7,41 @@ use Workerman\Protocols\Http\Response;
 use SebastianBergmann\Timer\Timer;
 use GeoIp2\Database\Reader;
 
-$city_reader = new Reader('/usr/local/share/GeoIP/GeoLite2-City.mmdb');
-$asn_reader = new Reader('/usr/local/share/GeoIP/GeoLite2-ASN.mmdb');
 
 $ip_worker = new Worker("http://0.0.0.0:2335");
 $ip_worker->count = 1;
 $ip_worker->name = 'ip';
-
+$ip_worker->onWorkerStart = function (Worker $worker) {
+    global $city_reader, $asn_reader;
+    $city_reader = new Reader('/usr/local/share/GeoIP/GeoLite2-City.mmdb');
+    $asn_reader = new Reader('/usr/local/share/GeoIP/GeoLite2-ASN.mmdb');
+};
 $ip_worker->onMessage = function (TcpConnection $connection, Request $request) {
-    $ip = ($request->header('X-Real-IP')) ? 
-        $request->header('X-Real-IP') : $connection->getRemoteIp();
+    global $city_reader, $asn_reader;
     $timer = new Timer;
     $timer->start();
-    global $city_reader, $asn_reader;
-    $city = $city_reader->city($ip);
-    $asn = $asn_reader->asn($ip);
-    $info = sprintf(
-        "%s\n%s / %s\nAS%s / %s\n\n%s\n",
-        $ip,
-        $city->country->isoCode,
-        $city->country->name,
-        $asn->autonomousSystemNumber,
-        $asn->autonomousSystemOrganization,
-        $request->header()['user-agent']
-    );
+    $ip = ($request->header('X-Real-IP')) ?
+        $request->header('X-Real-IP') : $connection->getRemoteIp();
+    switch ($request->path()) {
+        case '/asn':
+            $info = $asn_reader->asn($ip)->autonomousSystemNumber;
+            break;
+        case '/country':
+            $info = $city_reader->city($ip)->country->isoCode;
+            break;
+        case '/ua':
+            $info = $request->header()['user-agent'];
+            break;
+        default:
+            $info = sprintf(
+                "%s\n%s / %s\nAS%s / %s\n\n%s\n",
+                $ip, $city_reader->city($ip)->country->isoCode,
+                $city_reader->city($ip)->country->name,
+                $asn_reader->asn($ip)->autonomousSystemNumber,
+                $asn_reader->asn($ip)->autonomousSystemOrganization,
+                $request->header()['user-agent']
+            );
+    }
     $response = new Response(200, [
         'X-Powered-By' => 'Workerman ' . Worker::VERSION,
         'Connection' => 'close',
@@ -40,6 +51,4 @@ $ip_worker->onMessage = function (TcpConnection $connection, Request $request) {
     $connection->close($response);
 };
 
-if (!defined('GLOBAL_START')) {
-    Worker::runAll();
-}
+Worker::runAll();
