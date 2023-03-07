@@ -7,7 +7,6 @@ use Workerman\Protocols\Http\Response;
 use SebastianBergmann\Timer\Timer;
 use GeoIp2\Database\Reader;
 
-
 $ip_worker = new Worker("http://0.0.0.0:2335");
 $ip_worker->count = 1;
 $ip_worker->name = 'ip';
@@ -34,7 +33,7 @@ $ip_worker->onMessage = function (TcpConnection $connection, Request $request) {
             break;
         default:
             $info = sprintf(
-                "%s\n%s / %s\nAS%s / %s\n\n%s\n",
+                "%s\n%s / %s\nAS%s / %s\n\n%s",
                 $ip, $city_reader->city($ip)->country->isoCode,
                 $city_reader->city($ip)->country->name,
                 $asn_reader->asn($ip)->autonomousSystemNumber,
@@ -46,7 +45,7 @@ $ip_worker->onMessage = function (TcpConnection $connection, Request $request) {
         'X-Powered-By' => 'Workerman ' . Worker::VERSION,
         'Connection' => 'close',
         'Content-Type' => 'text/plain; charset=UTF-8'
-    ], $info);
+    ], $info . "\n");
     $response->header('Server-Timing', $timer->stop()->asMilliseconds());
     $connection->close($response);
 };
