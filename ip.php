@@ -22,6 +22,9 @@ $ip_worker->onMessage = function (TcpConnection $connection, Request $request) {
     $ip = ($request->header('X-Real-IP')) ?
         $request->header('X-Real-IP') : $connection->getRemoteIp();
     switch ($request->path()) {
+        case '/ip':
+            $info = $ip;
+            break;
         case '/asn':
             $info = $asn_reader->asn($ip)->autonomousSystemNumber;
             break;
