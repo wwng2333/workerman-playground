@@ -19,6 +19,10 @@ $ip_worker->onMessage = function (TcpConnection $connection, Request $request) {
     global $city_reader, $asn_reader;
     $timer = new Timer;
     $timer->start();
+    //if($request->path() == '/favicon.ico') $connection->close(new Response(204));
+    if ($request->header('x-vercel-id')) {
+        list($cdn, ) = explode('::', $request->header('x-vercel-id'));
+    }
     $ip = ($request->header('X-Real-IP')) ?
         $request->header('X-Real-IP') : $connection->getRemoteIp();
     switch ($request->path()) {
@@ -36,18 +40,20 @@ $ip_worker->onMessage = function (TcpConnection $connection, Request $request) {
             break;
         default:
             $info = sprintf(
-                "%s\n%s / %s\nAS%s / %s\n\n%s",
+                "%s\n%s / %s\nAS%s / %s\n\n%s\n%s",
                 $ip, $city_reader->city($ip)->country->isoCode,
                 $city_reader->city($ip)->country->name,
                 $asn_reader->asn($ip)->autonomousSystemNumber,
                 $asn_reader->asn($ip)->autonomousSystemOrganization,
-                $request->header()['user-agent']
+                $request->header()['user-agent'],
+                $cdn
             );
     }
     $response = new Response(200, [
         'X-Powered-By' => 'Workerman ' . Worker::VERSION,
         'Connection' => 'close',
-        'Content-Type' => 'text/plain; charset=UTF-8'
+        'Content-Security-Policy' => "img-src 'none'",
+        'Content-Type' => 'text/plain; charset=UTF-8',
     ], $info . "\n");
     $response->header('Server-Timing', $timer->stop()->asMilliseconds());
     $connection->close($response);
