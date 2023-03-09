@@ -13,14 +13,14 @@ class CrazyList
 	private $FakeRoot = '/';
 	private $FakePath = '';
 	private $RealPath = '';
-	public $FullHtml = '';
-	public static $GoBackHtml = '</br><img src="?gif=parentdir" alt="[PARENTDIR]"> <a href="#" onClick="javascript:history.go(-1);">Back to last page.</a>';
+	private $FullHtml = '';
+	private static $GoBackHtml = '</br><img src="?gif=parentdir" alt="[PARENTDIR]"> <a href="#" onClick="javascript:history.go(-1);">Back to last page.</a>';
 	private $_HeaderHtml = "<!DOCTYPE html PUBLIC \"-//WAPFORUM//DTD XHTML Mobile 1.0//EN\" \"http://www.wapforum.org/DTD/xhtml-mobile10.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n<head>\n<title>%s 的索引</title>\n<style type=\"text/css\" media=\"screen\">pre{background:0 0}body{margin:2em}tb{width:600px;margin:0 auto}</style>\n<script>if(window.name!=\"bencalie\"){location.reload();window.name=\"bencalie\"}else{window.name=\"\"}function del(){return confirm('Really delete?')}</script>\n</head>\n<body>\n<strong>%s 的索引</strong>\n";
 	private $StartTime = 0;
 	private $Request = array();
 	private $HtmlTempArr = array();
-	public $TotalSize = 0;
-	public $TotalFiles = 0;
+	private $TotalSize = 0;
+	private $TotalFiles = 0;
 	private function HeaderHtml()
 	{
 		return sprintf($this->_HeaderHtml, $this->FakePath, $this->FakePath);
@@ -37,7 +37,7 @@ class CrazyList
 
 		if ($request->get('gif')) {
 			echo 'hit gif' . "\n";
-			if ($gif = CrazyList::OutputGIF($request->get('gif'))) {
+			if ($gif = $this->OutputGIF($request->get('gif'))) {
 				$connection->send(new Response(200, [
 					'Content-Type' => 'image/gif'
 				], base64_decode($gif)));
@@ -53,10 +53,10 @@ class CrazyList
 				if ($array['error'] === UPLOAD_ERR_OK) {
 					rename($array['tmp_name'], $topath . $array['name']);
 				} else {
-					$connection->send('Upload failed.' . CrazyList::$GoBackHtml);
+					$connection->send('Upload failed.' . $this->GoBackHtml);
 				}
 			}
-			$connection->send('Upload success.' . CrazyList::$GoBackHtml);
+			$connection->send('Upload success.' . $this->GoBackHtml);
 		} elseif ($request->get('delete')) {
 			echo 'hit delete' . "\n";
 			unlink($this->FakeRoot . $request->get('delete'));
@@ -230,7 +230,7 @@ class CrazyList
 			$input = str_replace('//', '/', $input);
 		return $input;
 	}
-	public function GenerateOutputHtml()
+	private function GenerateOutputHtml()
 	{
 		$table = $this->MakeFileList();
 		$this->TotalSize = $this->FormatSize($this->TotalSize);
@@ -242,7 +242,7 @@ class CrazyList
 		$this->FullHtml = sprintf($template, $table, "Total {$this->TotalFiles} file(s), {$this->TotalSize}; " . $this->HtmlGenVersion());
 	}
 
-	public static function OutputGIF($name)
+	private static function OutputGIF($name)
 	{
 		switch ($name) {
 			case 'parentdir':
