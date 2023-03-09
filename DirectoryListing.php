@@ -10,10 +10,9 @@ require_once __DIR__ . '/vendor/autoload.php';
 
 class CrazyList
 {
-	private $FakeRoot = '/';
+	private $FakeRoot = '/root';
 	private $FakePath = '';
 	private $RealPath = '';
-	private $FullHtml = '';
 	private static $GoBackHtml = '</br><img src="?gif=parentdir" alt="[PARENTDIR]"> <a href="#" onClick="javascript:history.go(-1);">Back to last page.</a>';
 	private $_HeaderHtml = "<!DOCTYPE html PUBLIC \"-//WAPFORUM//DTD XHTML Mobile 1.0//EN\" \"http://www.wapforum.org/DTD/xhtml-mobile10.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n<head>\n<title>%s 的索引</title>\n<style type=\"text/css\" media=\"screen\">pre{background:0 0}body{margin:2em}tb{width:600px;margin:0 auto}</style>\n<script>if(window.name!=\"bencalie\"){location.reload();window.name=\"bencalie\"}else{window.name=\"\"}function del(){return confirm('Really delete?')}</script>\n</head>\n<body>\n<strong>%s 的索引</strong>\n";
 	private $StartTime = 0;
@@ -33,8 +32,8 @@ class CrazyList
 		$this->StartTime = microtime(true);
 		$this->Request = $request;
 		$this->FakePath = $request->path();
-		$this->RealPath = $this->RemoveTooManySlash($this->FakeRoot . $request->path() . '/');
-
+		$this->RealPath = $this->RemoveTooManySlash($this->FakeRoot . $this->FakePath);
+		echo sprintf(' F:%s R:%s ', $this->FakePath, $this->RealPath);
 		if ($request->get('gif')) {
 			echo 'hit gif' . "\n";
 			if ($gif = $this->OutputGIF($request->get('gif'))) {
@@ -61,15 +60,14 @@ class CrazyList
 			echo 'hit delete' . "\n";
 			unlink($this->FakeRoot . $request->get('delete'));
 			$connection->send('<script>history.go(-1)</script>');
-		} elseif (is_dir($request->path()) or is_file($request->path())) {
+		} elseif (is_dir($this->RealPath) or is_file($this->RealPath)) {
 			echo 'hit file or dir' . "\n";
-			if (is_file($request->path())) {
+			if (is_file($this->RealPath)) {
 				echo 'sending file to download' . "\n";
-				$response = (new Response())->withFile($request->path());
+				$response = (new Response())->withFile($this->RealPath);
 				$connection->send($response);
 			} else {
-				$this->GenerateOutputHtml();
-				$connection->send($this->FullHtml);
+				$connection->send($this->GenerateOutputHtml());
 			}
 		} else {
 			echo 'not hit, return 403' . "\n";
@@ -114,25 +112,32 @@ class CrazyList
 		unset($list[0], $list[1]);
 		foreach ($list as $name) {
 			$file_name[] = $name;
-			$real_path = $this->RealPath . '/' . $name;
+			$real_path = $this->RemoveTooManySlash($this->RealPath . '/' . $name);
+			$fake_path[] = $this->RemoveTooManySlash($this->FakePath . '/' . $name);
 			$is_dir[] = @scandir($real_path) ? true : false;
 			$file_size[] = filesize($real_path);
 			$file_mtime[] = filemtime($real_path);
 		}
 		switch ($sort) {
 			case 'name':
-				array_multisort($file_name, $order, $file_size, $file_mtime, $is_dir);
+				array_multisort($file_name, $order, $file_size, $file_mtime, $is_dir, $fake_path);
 				break;
 			case 'size':
-				array_multisort($file_size, $order, $file_name, $file_mtime, $is_dir);
+				array_multisort($file_size, $order, $file_name, $file_mtime, $is_dir, $fake_path);
 				break;
 			case 'mtime':
-				array_multisort($file_mtime, $order, $file_size, $file_name, $is_dir);
+				array_multisort($file_mtime, $order, $file_size, $file_name, $is_dir, $fake_path);
 				break;
 			default:
 				break;
 		}
-		return (isset($file_name)) ? array('name' => $file_name, 'size' => $file_size, 'mtime' => $file_mtime, 'dir' => $is_dir) : false;
+		return (isset($file_name)) ? array(
+			'name' => $file_name,
+			'size' => $file_size,
+			'mtime' => $file_mtime,
+			'dir' => $is_dir,
+			'fake_path' => $fake_path,
+		) : false;
 	}
 
 	private function GenParentDir($where)
@@ -188,6 +193,7 @@ class CrazyList
 	private function MakeFileList()
 	{
 		$array = $this->ReadDirToArray();
+		var_dump($array);
 		if ($array === false)
 			return false;
 		$str = '';
@@ -204,7 +210,7 @@ class CrazyList
 		}
 		for ($i = 0; $i < count($array['name']); $i++) {
 			$name = $array['name'][$i];
-			$real_path = $this->RemoveTooManySlash($this->RealPath . $name);
+			$real_path = $array['fake_path'][$i];
 			if ($array['dir'][$i]) {
 				$str .= $this->HtmlLab('tr') . $this->HtmlGIF('dir', 'DIR') . $this->HtmlLab('td') . $this->HtmlLinkTo('dir', $real_path, $name) . $this->HtmlLab('td');
 				$str .= $this->HtmlMTime($array['mtime'][$i]) . $this->HtmlSize('-') . $this->GenDelHtml($real_path) . $this->HtmlLab('tr');
@@ -221,7 +227,7 @@ class CrazyList
 
 	private function GenerateUploadHtml()
 	{
-		return '<form action="upload" method="post" enctype="multipart/form-data"><input type="hidden" name="topath"  value="' . $this->RealPath . '" /><input type="file" name="file" id="file" /><input type="submit" name="submit" value="上传" /></form>';
+		return '<form action="upload" method="post" enctype="multipart/form-data"><input type="hidden" name="topath"  value="' . $this->FakePath . '" /><input type="file" name="file" id="file" /><input type="submit" name="submit" value="上传" /></form>';
 	}
 
 	private function RemoveTooManySlash($input)
@@ -235,11 +241,11 @@ class CrazyList
 		$table = $this->MakeFileList();
 		$this->TotalSize = $this->FormatSize($this->TotalSize);
 		$footer = $this->GenerateUploadHtml() . "<address>%s</address>\n</body>\n</html>";
-		$template = $this->HeaderHtml() . "<table><th><img src=\"?gif=ico\" alt=\"[ICO]\"></th><th><a href=\"?dir=$this->RealPath&sort=name\">名称</a></th><th><a href=\"?dir=$this->RealPath&sort=mtime\">最后更改</a></th><th><a href=\"?dir=$this->RealPath&sort=size\">大小</a></th></tr><tr><th colspan=\"6\"><hr></th></tr>%s<tr><th colspan=\"6\"><hr></th></tr></table>" . $footer;
+		$template = $this->HeaderHtml() . "<table><th><img src=\"?gif=ico\" alt=\"[ICO]\"></th><th><a href=\"?dir=$this->FakePath&sort=name\">名称</a></th><th><a href=\"?dir=$this->FakePath&sort=mtime\">最后更改</a></th><th><a href=\"?dir=$this->FakePath&sort=size\">大小</a></th></tr><tr><th colspan=\"6\"><hr></th></tr>%s<tr><th colspan=\"6\"><hr></th></tr></table>" . $footer;
 		if ($table === false) {
-			$this->FullHtml = sprintf($this->HeaderHtml() . '<p>No files.</p>' . $footer, $this->HtmlGenVersion());
+			return sprintf($this->HeaderHtml() . '<p>No files.</p>' . $footer, $this->HtmlGenVersion());
 		} else {
-			$this->FullHtml = sprintf($template, $table, "Total {$this->TotalFiles} file(s), {$this->TotalSize}; " . $this->HtmlGenVersion());
+			return sprintf($template, $table, "Total {$this->TotalFiles} file(s), {$this->TotalSize}; " . $this->HtmlGenVersion());
 		}
 	}
 
