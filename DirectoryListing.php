@@ -188,7 +188,8 @@ class CrazyList
 	private function MakeFileList()
 	{
 		$array = $this->ReadDirToArray();
-		if (!$array)
+		var_dump($array);
+		if ($array === false)
 			return false;
 		$str = '';
 		if (!empty($path = rtrim($this->FakePath, '/'))) {
@@ -235,11 +236,13 @@ class CrazyList
 		$table = $this->MakeFileList();
 		$this->TotalSize = $this->FormatSize($this->TotalSize);
 		$footer = $this->GenerateUploadHtml() . "<address>%s</address>\n</body>\n</html>";
-
+		var_dump($table);
 		$template = $this->HeaderHtml() . "<table><th><img src=\"?gif=ico\" alt=\"[ICO]\"></th><th><a href=\"?dir=$this->RealPath&sort=name\">名称</a></th><th><a href=\"?dir=$this->RealPath&sort=mtime\">最后更改</a></th><th><a href=\"?dir=$this->RealPath&sort=size\">大小</a></th></tr><tr><th colspan=\"6\"><hr></th></tr>%s<tr><th colspan=\"6\"><hr></th></tr></table>" . $footer;
-		if (!$table)
+		if ($table === false) {
 			$this->FullHtml = sprintf($this->HeaderHtml() . '<p>No files.</p>' . $footer, $this->HtmlGenVersion());
-		$this->FullHtml = sprintf($template, $table, "Total {$this->TotalFiles} file(s), {$this->TotalSize}; " . $this->HtmlGenVersion());
+		} else {
+			$this->FullHtml = sprintf($template, $table, "Total {$this->TotalFiles} file(s), {$this->TotalSize}; " . $this->HtmlGenVersion());
+		}
 	}
 
 	private static function OutputGIF($name)
