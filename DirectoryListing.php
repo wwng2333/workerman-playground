@@ -8,29 +8,75 @@ use Workerman\Protocols\Http\Response;
 
 require_once __DIR__ . '/vendor/autoload.php';
 
-$GLOBALS['path'] = '/';
-if (substr($GLOBALS['path'], '-1') !== '/')
-	$GLOBALS['path'] .= '/';
-
 class CrazyList
 {
+	private $FakeRoot = '/';
 	private $FakePath = '';
 	private $RealPath = '';
 	public $FullHtml = '';
 	public static $GoBackHtml = '</br><img src="?gif=parentdir" alt="[PARENTDIR]"> <a href="#" onClick="javascript:history.go(-1);">Back to last page.</a>';
+	private $_HeaderHtml = "<!DOCTYPE html PUBLIC \"-//WAPFORUM//DTD XHTML Mobile 1.0//EN\" \"http://www.wapforum.org/DTD/xhtml-mobile10.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n<head>\n<title>%s 的索引</title>\n<style type=\"text/css\" media=\"screen\">pre{background:0 0}body{margin:2em}tb{width:600px;margin:0 auto}</style>\n<script>if(window.name!=\"bencalie\"){location.reload();window.name=\"bencalie\"}else{window.name=\"\"}function del(){return confirm('Really delete?')}</script>\n</head>\n<body>\n<strong>%s 的索引</strong>\n";
 	private $StartTime = 0;
 	private $Request = array();
 	private $HtmlTempArr = array();
 	public $TotalSize = 0;
 	public $TotalFiles = 0;
-	public function __construct($request)
+	private function HeaderHtml()
 	{
+		return sprintf($this->_HeaderHtml, $this->FakePath, $this->FakePath);
+	}
+	public function __construct($connection, $request)
+	{
+		echo date("Y-m-d h:i:s ", time()) . $request->uri() . ' ';
+		if (substr($this->FakeRoot, '-1') !== '/')
+			$this->FakeRoot .= '/';
 		$this->StartTime = microtime(true);
 		$this->Request = $request;
-		$this->FakePath = $this->Request->path();
-		$this->RealPath = $this->RemoveTooManySlash($GLOBALS['path'] . $this->FakePath . '/');
+		$this->FakePath = $request->path();
+		$this->RealPath = $this->RemoveTooManySlash($this->FakeRoot . $request->path() . '/');
+
+		if ($request->get('gif')) {
+			echo 'hit gif' . "\n";
+			if ($gif = CrazyList::OutputGIF($request->get('gif'))) {
+				$connection->send(new Response(200, [
+					'Content-Type' => 'image/gif'
+				], base64_decode($gif)));
+			} else {
+				$connection->send(new Response(404));
+			}
+		} elseif (count($files = $request->file()) > 0) {
+			echo 'hit upload' . "\n";
+			$topath = $request->post('topath', '/');
+			if (substr($topath, '-1') !== '/')
+				$topath .= '/';
+			foreach ($files as $array) {
+				if ($array['error'] === UPLOAD_ERR_OK) {
+					rename($array['tmp_name'], $topath . $array['name']);
+				} else {
+					$connection->send('Upload failed.' . CrazyList::$GoBackHtml);
+				}
+			}
+			$connection->send('Upload success.' . CrazyList::$GoBackHtml);
+		} elseif ($request->get('delete')) {
+			echo 'hit delete' . "\n";
+			unlink($this->FakeRoot . $request->get('delete'));
+			$connection->send('<script>history.go(-1)</script>');
+		} elseif (is_dir($request->path()) or is_file($request->path())) {
+			echo 'hit file or dir' . "\n";
+			if (is_file($request->path())) {
+				echo 'sending file to download' . "\n";
+				$response = (new Response())->withFile($request->path());
+				$connection->send($response);
+			} else {
+				$this->GenerateOutputHtml();
+				$connection->send($this->FullHtml);
+			}
+		} else {
+			echo 'not hit, return 403' . "\n";
+			$connection->send(new Response(403));
+		}
 	}
-	private function formatsize($size, $key = 0)
+	private function FormatSize($size, $key = 0)
 	{
 		if ($size < 0) {
 			return '0B';
@@ -43,34 +89,32 @@ class CrazyList
 			return round($size, 1) . $danwei[$key];
 		}
 	}
-	private function disk_usage()
+	private function GetDiskUsage()
 	{
 		$total = disk_total_space(".");
 		$free = disk_free_space(".");
-		$used = round(($total - $free) / $total * 100, 2) . '%';
 		$html = '%s available of %s, %s used.</br>';
-		return sprintf($html, $this->formatsize($free), $this->formatsize($total), $used);
+		return sprintf($html, $this->FormatSize($free), $this->FormatSize($total), round(($total - $free) / $total * 100, 2) . '%');
 	}
 
-	private function get_ver($data)
+	private function HtmlGenVersion()
 	{
-		list($host, $port) = explode(':', $data);
+		list($host, $port) = explode(':', $this->Request->host());
 		$time_usage = round((microtime(true) - $this->StartTime) * 1000, 4);
 		$mem_usage = round(memory_get_usage() / 1024 / 1024, 2);
 		$_s = "Processed in {$time_usage} ms , {$mem_usage} MB memory used.\n";
-		return $this->disk_usage() . sprintf($_s . '</br>Workerman %s Server at %s Port %s', Worker::VERSION, $host, $port);
+		return $this->GetDiskUsage() . sprintf($_s . '</br>Workerman %s Server at %s Port %s', Worker::VERSION, $host, $port);
 	}
 
 	private function ReadDirToArray()
 	{
 		$order = SORT_DESC;
-		$dir = $this->RealPath;
 		$sort = $this->Request->get('sort');
-		$list = scandir($dir);
+		$list = scandir($this->RealPath);
 		unset($list[0], $list[1]);
 		foreach ($list as $name) {
 			$file_name[] = $name;
-			$real_path = $dir . '/' . $name;
+			$real_path = $this->RealPath . '/' . $name;
 			$is_dir[] = @scandir($real_path) ? true : false;
 			$file_size[] = filesize($real_path);
 			$file_mtime[] = filemtime($real_path);
@@ -91,20 +135,20 @@ class CrazyList
 		return (isset($file_name)) ? array('name' => $file_name, 'size' => $file_size, 'mtime' => $file_mtime, 'dir' => $is_dir) : false;
 	}
 
-	private function parentdir($where)
+	private function GenParentDir($where)
 	{
 		return "<tr><td valign=\"top\"><img src=\"?gif=parentdir\" alt=\"[PARENTDIR]\"></td><td><a href=\"$where\">Parent Directory</a></td><td>&nbsp;</td><td align=\"right\">  - </td><td>&nbsp;</td></tr>";
 	}
 
-	private function del($name)
+	private function GenDelHtml($name)
 	{
 		$name = urlencode($name);
 		return "<td align=\"right\"><a href=\"?delete=$name\" onclick=\"del()\"> 删除</a></td>\n";
 	}
 
-	private function mtime($mtime)
+	private function HtmlMTime($mtime)
 	{
-		return "<td align=\"right\"> $mtime</td>\n";
+		return "<td align=\"right\">" . date("Y-m-d H:i", $mtime) . "</td>\n";
 	}
 
 	private function HtmlSize($size)
@@ -133,6 +177,7 @@ class CrazyList
 
 	private function HtmlLinkTo($mode, $real_path, $name)
 	{
+
 		if ($mode == 'dir') {
 			$real_path .= '/';
 			$name .= '/';
@@ -155,18 +200,18 @@ class CrazyList
 				unset($tmp[$count]);
 				$tmp = implode('/', $tmp);
 			}
-			$str .= $this->parentdir($tmp);
+			$str .= $this->GenParentDir($tmp);
 		}
 		for ($i = 0; $i < count($array['name']); $i++) {
 			$name = $array['name'][$i];
 			$real_path = $this->RemoveTooManySlash($this->RealPath . $name);
 			if ($array['dir'][$i]) {
 				$str .= $this->HtmlLab('tr') . $this->HtmlGIF('dir', 'DIR') . $this->HtmlLab('td') . $this->HtmlLinkTo('dir', $real_path, $name) . $this->HtmlLab('td');
-				$str .= $this->mtime(date("Y-m-d H:i", $array['mtime'][$i])) . $this->HtmlSize('-') . $this->del($real_path) . $this->HtmlLab('tr');
+				$str .= $this->HtmlMTime($array['mtime'][$i]) . $this->HtmlSize('-') . $this->GenDelHtml($real_path) . $this->HtmlLab('tr');
 				$this->TotalFiles++;
 			} else {
 				$str .= $this->HtmlLab('tr') . $this->HtmlGIF('blank', '   ') . $this->HtmlLab('td') . $this->HtmlLinkTo('download', $real_path, $name) . $this->HtmlLab('td');
-				$str .= $this->mtime(date("Y-m-d H:i", $array['mtime'][$i])) . $this->HtmlSize($this->formatsize($array['size'][$i])) . $this->del($real_path) . $this->HtmlLab('tr');
+				$str .= $this->HtmlMTime($array['mtime'][$i]) . $this->HtmlSize($this->FormatSize($array['size'][$i])) . $this->GenDelHtml($real_path) . $this->HtmlLab('tr');
 				$this->TotalFiles++;
 				$this->TotalSize += $array['size'][$i];
 			}
@@ -188,13 +233,13 @@ class CrazyList
 	public function GenerateOutputHtml()
 	{
 		$table = $this->MakeFileList();
-		$this->TotalSize = $this->formatsize($this->TotalSize);
-		$header = "<!DOCTYPE html PUBLIC \"-//WAPFORUM//DTD XHTML Mobile 1.0//EN\" \"http://www.wapforum.org/DTD/xhtml-mobile10.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n<head>\n<title>%s 的索引</title>\n<style type=\"text/css\" media=\"screen\">pre{background:0 0}body{margin:2em}tb{width:600px;margin:0 auto}</style>\n<script>if(window.name!=\"bencalie\"){location.reload();window.name=\"bencalie\"}else{window.name=\"\"}function del(){return confirm('Really delete?')}</script>\n</head>\n<body>\n<strong>$this->RealPath 的索引</strong>\n";
+		$this->TotalSize = $this->FormatSize($this->TotalSize);
 		$footer = $this->GenerateUploadHtml() . "<address>%s</address>\n</body>\n</html>";
-		$template = sprintf($header, $this->RealPath) . "<table><th><img src=\"?gif=ico\" alt=\"[ICO]\"></th><th><a href=\"?dir=$this->RealPath&sort=name\">名称</a></th><th><a href=\"?dir=$this->RealPath&sort=mtime\">最后更改</a></th><th><a href=\"?dir=$this->RealPath&sort=size\">大小</a></th></tr><tr><th colspan=\"6\"><hr></th></tr>%s<tr><th colspan=\"6\"><hr></th></tr></table>" . $footer;
+
+		$template = $this->HeaderHtml() . "<table><th><img src=\"?gif=ico\" alt=\"[ICO]\"></th><th><a href=\"?dir=$this->RealPath&sort=name\">名称</a></th><th><a href=\"?dir=$this->RealPath&sort=mtime\">最后更改</a></th><th><a href=\"?dir=$this->RealPath&sort=size\">大小</a></th></tr><tr><th colspan=\"6\"><hr></th></tr>%s<tr><th colspan=\"6\"><hr></th></tr></table>" . $footer;
 		if (!$table)
-			$this->FullHtml = sprintf(sprintf($header, $this->RealPath) . '<p>No files.</p>' . $footer, $this->get_ver($this->Request->host()));
-		$this->FullHtml = sprintf($template, $table, "Total {$this->TotalFiles} file(s), {$this->TotalSize}; " . $this->get_ver($this->Request->host()));
+			$this->FullHtml = sprintf($this->HeaderHtml() . '<p>No files.</p>' . $footer, $this->HtmlGenVersion());
+		$this->FullHtml = sprintf($template, $table, "Total {$this->TotalFiles} file(s), {$this->TotalSize}; " . $this->HtmlGenVersion());
 	}
 
 	public static function OutputGIF($name)
@@ -222,49 +267,9 @@ class CrazyList
 
 $http_worker = new Worker("http://0.0.0.0:12101");
 $http_worker->name = 'Crazy List';
+$http_worker->count = 2;
 $http_worker->onMessage = function (TcpConnection $connection, Request $request) {
-	echo date("Y-m-d h:i:s ", time()) . $request->uri() . ' ';
-	if ($request->get('gif')) {
-		echo 'hit gif' . "\n";
-		if ($gif = CrazyList::OutputGIF($request->get('gif'))) {
-			$connection->send(new Response(200, [
-				'Content-Type' => 'image/gif'
-			], base64_decode($gif)));
-		} else {
-			$connection->send(new Response(404));
-		}
-	} elseif (count($files = $request->file()) > 0) {
-		echo 'hit upload' . "\n";
-		$topath = $request->post('topath', '/');
-		if (substr($topath, '-1') !== '/')
-			$topath .= '/';
-		foreach ($files as $array) {
-			if ($array['error'] === UPLOAD_ERR_OK) {
-				rename($array['tmp_name'], $topath . $array['name']);
-			} else {
-				$connection->send('Upload failed.' . CrazyList::$GoBackHtml);
-			}
-		}
-		$connection->send('Upload success.' . CrazyList::$GoBackHtml);
-	} elseif ($request->get('delete')) {
-		echo 'hit delete' . "\n";
-		unlink($GLOBALS['path'] . $request->get('delete'));
-		$connection->send('<script>history.go(-1)</script>');
-	} elseif (is_dir($request->path()) or is_file($request->path())) {
-		echo 'hit file or dir' . "\n";
-		if (is_file($request->path())) {
-			echo 'sending file to download' . "\n";
-			$response = (new Response())->withFile($request->path());
-			$connection->send($response);
-		} else {
-			$crazy = new CrazyList($request);
-			$crazy->GenerateOutputHtml();
-			$connection->send($crazy->FullHtml);
-		}
-	} else {
-		echo 'not hit, return 403' . "\n";
-		$connection->send(new Response(403));
-	}
+	new CrazyList($connection, $request);
 };
 
 Worker::runAll();
