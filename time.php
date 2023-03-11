@@ -46,7 +46,8 @@ $http_worker->onMessage = function (TcpConnection $connection, Request $request)
             $time_usage = round((microtime(true) - $GLOBALS['time_start']) * 1000, 4);
             $mem_usage = round(memory_get_usage() / 1024 / 1024, 2);
             $_s = "Processed in {$time_usage} ms , {$mem_usage} MB memory used.\n";
-            $version = sprintf($_s . '</br>Workerman %s Server at %s', Worker::VERSION, $request->header()['x-forwarded-host']);
+            $host = $request->header('x-forwarded-host', $request->host(true));
+            $version = sprintf($_s . '</br>Workerman %s Server at %s', Worker::VERSION, $host);
             $connection->send(sprintf($text, $version));
     }
 };
