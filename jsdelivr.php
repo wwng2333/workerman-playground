@@ -11,7 +11,12 @@ define('UPSTREAM', ['/npm', '/gh', '/wp']);
 $jsdelivr_worker = new Worker("http://0.0.0.0:2334");
 $jsdelivr_worker->count = 2;
 $jsdelivr_worker->name = 'jsdelivr';
+$jsdelivr_worker->onWorkerStart = function (Worker $worker) {
+    global $global;
+    $global = new GlobalData\Client('127.0.0.1:2207');
+};
 $jsdelivr_worker->onMessage = function (TcpConnection $connection, Request $request) {
+    global $global;
     if ($request->path() === '/myipv4addr') {
         $ip = ($request->header('X-Real-IP')) ? 
             $request->header('X-Real-IP') : $connection->getRemoteIp();
@@ -28,12 +33,10 @@ $jsdelivr_worker->onMessage = function (TcpConnection $connection, Request $requ
     }
     $timer = new Timer;
     $timer->start();
-    $memcached = new Memcached();
-    $memcached->addServer('localhost', 11211);
     $is_cached = 'missedCache';
     if (in_array($request->path(), UPSTREAM) and $request->get('family')) {
         $key_name = md5($request->uri());
-        if ($res = $memcached->get($key_name)) {
+        if ($res = $global->($key_name)) {
             $is_cached = 'cache; desc="Cache Read"';
         } else {
             $list = stristr($request->get('family'), '|') ? explode('|', $request->get('family')) : [$request->get('family')];
@@ -43,9 +46,8 @@ $jsdelivr_worker->onMessage = function (TcpConnection $connection, Request $requ
                 $response = Requests::get($url);
                 $res .= $response->body . "\n";
             }
-            $memcached->set($key_name, $res, 86400);
+            $global->$key_name = $res;
         }
-        $memcached->quit();
         if (stristr($request->header('Accept-Encoding'), 'gzip'))
             $res = gzencode($res);
         $response = new Response(200, [
