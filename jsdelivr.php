@@ -36,7 +36,7 @@ $jsdelivr_worker->onMessage = function (TcpConnection $connection, Request $requ
     $is_cached = 'missedCache';
     if (in_array($request->path(), UPSTREAM) and $request->get('family')) {
         $key_name = md5($request->uri());
-        if ($res = $global->($key_name)) {
+        if ($res = $global->$key_name) {
             $is_cached = 'cache; desc="Cache Read"';
         } else {
             $list = stristr($request->get('family'), '|') ? explode('|', $request->get('family')) : [$request->get('family')];
