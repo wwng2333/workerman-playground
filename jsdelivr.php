@@ -29,19 +29,23 @@ $jsdelivr_worker->onMessage = function (TcpConnection $connection, Request $requ
     $response = new Response(200, [
         'Content-Security-Policy' => "img-src 'none'",
         'X-Powered-by' => 'workerman',
-        'Connection' => 'close'
+        'Connection' => 'close',
     ]);
     global $global;
-    $url = substr($request->uri(), 1);
+    $url = str_replace('/https:/', 'https://', $request->uri());
+    var_dump($url);
     if (filter_var($url, FILTER_VALIDATE_URL)) {
+        echo "recv url $url\n";
         $parse_url = parse_url($url);
         $is_cached = 'no-cache; ';
         if (in_array($parse_url['host'], GITHUB_HOSTNAME)) {
+            echo "url ok\n";
             $temp = Requests::get($url);
             $response->withStatus($temp->status_code);
             $response->header('Content-Type', $temp->headers['Content-Type']);
             $response->withBody($temp->body);
         } else {
+            echo "bad url\n";
             $response->withStatus(403);
             $response->withBody(_403_CODE);
         }
@@ -60,8 +64,10 @@ $jsdelivr_worker->onMessage = function (TcpConnection $connection, Request $requ
                 $is_cached = 'missedCache; ';
                 if (in_array($request->path(), UPSTREAM) and $request->get('family')) {
                     $key_name = md5($request->uri());
+                    $key_type = md5($request->uri().'_Type');
                     if ($res = $global->$key_name) {
                         $is_cached = 'cache; desc="Cache Read"; ';
+                        $response->header('Content-Type', $global->key_type);
                     } else {
                         $list = stristr($request->get('family'), '|') ? explode('|', $request->get('family')) : [$request->get('family')];
                         $res = '';
@@ -69,12 +75,13 @@ $jsdelivr_worker->onMessage = function (TcpConnection $connection, Request $requ
                             $temp = Requests::get(sprintf('https://fastly.jsdelivr.net%s/%s', $request->path(), $addr));
                             $res .= $temp->body . "\n";
                         }
+                        $response->header('Content-Type', $temp->headers['Content-Type']);
+                        $global->key_type = $temp->headers['Content-Type'];
                         $global->$key_name = $res;
                     }
                     $response->withHeaders([
                         'Cache-control' => 'max-age=86400',
                         'Access-Control-Allow-Origin' => '*',
-                        'Content-Type' => 'text/plain; charset=UTF-8'
                     ]);
                     $response->withBody($res);
                 } else {
