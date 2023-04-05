@@ -15,14 +15,46 @@ define('GITHUB_HOSTNAME', [
     'gist.github.com',
     'gist.githubusercontent.com'
 ]);
+define('JSDELIVR_HOST', [
+    'fastly.jsdelivr.net',
+    'testingcf.jsdelivr.net',
+    'gcore.jsdelivr.net',
+    'cdn.jsdelivr.net'
+]);
 define('_403_CODE', '<html><head><title>403 Forbidden</title></head><body><center><h1>403 Forbidden</h1></center><hr><center>workerman</center></body></html>');
+
+function Jsdelivr_Check()
+{
+    global $global;
+    echo "cron run\n";
+    foreach (JSDELIVR_HOST as $host_now) {
+        $url = 'https://' . $host_now;
+        try {
+            echo "try $url\n";
+            $temp = Requests::get($url);
+            if ($temp->success) {
+                echo $host_now . " OK\n";
+                $global->host = $host_now;
+                break;
+            }
+        } catch (Exception $e) {
+            continue;
+        }
+    }
+}
+
 $jsdelivr_worker = new Worker("http://0.0.0.0:2334");
-$jsdelivr_worker->count = 2;
+$jsdelivr_worker->count = 1;
 $jsdelivr_worker->name = 'jsdelivr';
 $jsdelivr_worker->onWorkerStart = function (Worker $worker) {
     global $global;
     $global = new GlobalData\Client('127.0.0.1:2207');
+    Jsdelivr_Check();
+    Workerman\Timer::add(60, function () {
+        Jsdelivr_Check();
+    });
 };
+
 $jsdelivr_worker->onMessage = function (TcpConnection $connection, Request $request) {
     $timer = new Timer;
     $timer->start();
@@ -61,19 +93,30 @@ $jsdelivr_worker->onMessage = function (TcpConnection $connection, Request $requ
                 $response->withStatus(204);
                 break;
             default:
+                echo "recv jsdelivr job: " . $request->path()."\n";
                 $is_cached = 'missedCache; ';
                 if (in_array($request->path(), UPSTREAM) and $request->get('family')) {
                     $key_name = md5($request->uri());
-                    $key_type = md5($request->uri().'_Type');
+                    $key_type = md5($request->uri() . '_Type');
                     if ($res = $global->$key_name) {
+                        echo ", read cache\n";
                         $is_cached = 'cache; desc="Cache Read"; ';
                         $response->header('Content-Type', $global->$key_type);
                     } else {
+                        echo "new query, ";
                         $list = stristr($request->get('family'), '|') ? explode('|', $request->get('family')) : [$request->get('family')];
                         $res = '';
                         foreach ($list as $addr) {
-                            $temp = Requests::get(sprintf('https://fastly.jsdelivr.net%s/%s', $request->path(), $addr));
+                            $url = sprintf(
+                                'https://%s%s/%s',
+                                $global->host,
+                                $request->path(),
+                                $addr
+                            );
+                            echo "get $url:";
+                            $temp = Requests::get($url);
                             $res .= $temp->body . "\n";
+                            echo $temp->status_code . "\n";
                         }
                         $response->header('Content-Type', $temp->headers['Content-Type']);
                         $global->$key_type = $temp->headers['Content-Type'];
