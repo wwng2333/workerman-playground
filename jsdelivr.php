@@ -67,7 +67,7 @@ $jsdelivr_worker->onMessage = function (TcpConnection $connection, Request $requ
                     $key_type = md5($request->uri().'_Type');
                     if ($res = $global->$key_name) {
                         $is_cached = 'cache; desc="Cache Read"; ';
-                        $response->header('Content-Type', $global->key_type);
+                        $response->header('Content-Type', $global->$key_type);
                     } else {
                         $list = stristr($request->get('family'), '|') ? explode('|', $request->get('family')) : [$request->get('family')];
                         $res = '';
@@ -76,7 +76,7 @@ $jsdelivr_worker->onMessage = function (TcpConnection $connection, Request $requ
                             $res .= $temp->body . "\n";
                         }
                         $response->header('Content-Type', $temp->headers['Content-Type']);
-                        $global->key_type = $temp->headers['Content-Type'];
+                        $global->$key_type = $temp->headers['Content-Type'];
                         $global->$key_name = $res;
                     }
                     $response->withHeaders([
