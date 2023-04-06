@@ -43,7 +43,7 @@ function Jsdelivr_Check()
     }
 }
 
-$jsdelivr_worker = new Worker("http://0.0.0.0:2334");
+$jsdelivr_worker = new Worker("http://[::]:80");
 $jsdelivr_worker->count = 1;
 $jsdelivr_worker->name = 'jsdelivr';
 $jsdelivr_worker->onWorkerStart = function (Worker $worker) {
@@ -84,8 +84,8 @@ $jsdelivr_worker->onMessage = function (TcpConnection $connection, Request $requ
     } else {
         switch ($request->path()) {
             case '/myipv4addr':
-                $ip = ($request->header('X-Real-IP')) ?
-                    $request->header('X-Real-IP') : $connection->getRemoteIp();
+                $ip = ($request->header('X-Forwarded-For')) ?
+                    $request->header('X-Forwarded-For') : $connection->getRemoteIp();
                 $response->withHeaders(['Content-Type' => 'text/javascript']);
                 $response->withBody(sprintf('var ipv4addr= document.getElementById("ipv4addr"); ipv4addr.innerHTML=\'Your IP: %s\'', $ip));
                 break;
