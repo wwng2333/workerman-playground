@@ -19,12 +19,15 @@ $ip_worker->onMessage = function (TcpConnection $connection, Request $request) {
     global $city_reader, $asn_reader;
     $timer = new Timer;
     $timer->start();
+    $ip = ($request->header('X-Real-IP')) ?
+        $request->header('X-Real-IP') : $connection->getRemoteIp();
     //if($request->path() == '/favicon.ico') $connection->close(new Response(204));
     if ($request->header('x-vercel-id')) {
         list($cdn, ) = explode('::', $request->header('x-vercel-id'));
+    } else if ($request->header('CF-RAY')) {
+        list(, $cdn) = explode('-', $request->header('CF-RAY'));
+        $ip = $request->header('CF-Connecting-IP');
     }
-    $ip = ($request->header('X-Real-IP')) ?
-        $request->header('X-Real-IP') : $connection->getRemoteIp();
     switch ($request->path()) {
         case '/ip':
             $info = $ip;
