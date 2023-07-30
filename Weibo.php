@@ -15,6 +15,9 @@ function Cron_Run()
     sleep(1);
     $crazy = new CrazyWeibo('7426493874');
     $global->wb_last_result .= $crazy->return;
+    sleep(1);
+    $crazy = new CrazyWeibo('1239246050');
+    $global->wb_last_result .= $crazy->return;
 }
 
 $dianfei_worker = new Worker('http://100.77.158.125:2397');
