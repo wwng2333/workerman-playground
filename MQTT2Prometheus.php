@@ -10,6 +10,7 @@ $web_worker = new Worker('http://100.77.158.125:2396');
 $web_worker->onWorkerStart = function () {
     global $global;
     $global->MQTT_recv = array();
+    $global->MQTT_count = array();
     $global->MQTTLastResult = '';
     $mqtt = new Workerman\Mqtt\Client(
         'mqtt://crazy.ala.cn-hangzhou.emqxsl.cn:8883',
@@ -28,6 +29,7 @@ $web_worker->onWorkerStart = function () {
         list(, $id) = explode('/', $topic);
         $global->MQTT_recv[$id]['content'] = $content;
         $global->MQTT_recv[$id]['time'] = GetMicrotime();
+        $global->MQTT_count[$topic] = $global->MQTT_count[$topic]+1;
         $global->MQTTLastResult = '';
         foreach ($global->MQTT_recv as $key => $rnow) {
             $global->MQTTLastResult .= sprintf(
@@ -35,6 +37,13 @@ $web_worker->onWorkerStart = function () {
                 $key,
                 $rnow['content'],
                 $rnow['time'],
+            ) . "\n";
+        }
+        foreach ($global->MQTT_count as $key => $val) {
+            $global->MQTTLastResult .= sprintf(
+                'received_messages{topic="%s"} %s',
+                $key,
+                $val,
             ) . "\n";
         }
         //var_dump($global->MQTTLastResult);
