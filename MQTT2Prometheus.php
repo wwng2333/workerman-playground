@@ -22,14 +22,7 @@ $web_worker->onWorkerStart = function () {
         ]
     );
     $mqtt->onConnect = function ($mqtt) {
-        $mqtt->subscribe('Crazy/+');
-        $mqtt->subscribe('Crazy/Boot/+');
-        $mqtt->subscribe('Crazy/RSSI/+');
-        $mqtt->subscribe('Crazy/Temp/+');
-        $mqtt->subscribe('Crazy/Humi/+');
-        $mqtt->subscribe('Crazy/Pres/+');
-        $mqtt->subscribe('Crazy/Gas/+');
-        $mqtt->subscribe('Crazy/ADC/+');
+        $mqtt->subscribe('Crazy/+/+');
     };
     $mqtt->onMessage = function ($topic, $content) {
         global $global;
