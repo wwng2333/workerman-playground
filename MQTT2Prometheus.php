@@ -23,21 +23,50 @@ $web_worker->onWorkerStart = function () {
     );
     $mqtt->onConnect = function ($mqtt) {
         $mqtt->subscribe('Crazy/+');
+        $mqtt->subscribe('Crazy/Boot/+');
+        $mqtt->subscribe('Crazy/RSSI/+');
+        $mqtt->subscribe('Crazy/Temp/+');
+        $mqtt->subscribe('Crazy/Humi/+');
+        $mqtt->subscribe('Crazy/Pres/+');
+        $mqtt->subscribe('Crazy/Gas/+');
+        $mqtt->subscribe('Crazy/ADC/+');
     };
     $mqtt->onMessage = function ($topic, $content) {
         global $global;
-        list(, $id) = explode('/', $topic);
-        $global->MQTT_recv[$id]['content'] = $content;
-        $global->MQTT_recv[$id]['time'] = GetMicrotime();
-        $global->MQTT_count[$topic] = $global->MQTT_count[$topic]+1;
-        $global->MQTTLastResult = '';
+        $temp = explode('/', $topic);
+        if (count($temp) > 2) {
+            $id = $topic;
+            $global->MQTT_recv[$id]['content'] = $content;
+            $global->MQTT_recv[$id]['time'] = GetMicrotime();
+            $global->MQTT_recv[$id]['name'] = $temp[2];
+            $global->MQTT_count[$topic] = $global->MQTT_count[$topic] + 1;
+            $global->MQTTLastResult = '';
+        } else {
+            $id = $topic;
+            $global->MQTT_recv[$id]['content'] = $content;
+            $global->MQTT_recv[$id]['time'] = GetMicrotime();
+            $global->MQTT_count[$topic] = $global->MQTT_count[$topic] + 1;
+            $global->MQTTLastResult = '';
+        }
         foreach ($global->MQTT_recv as $key => $rnow) {
-            $global->MQTTLastResult .= sprintf(
-                '%s %s %s',
-                $key,
-                $rnow['content'],
-                $rnow['time'],
-            ) . "\n";
+            if (isset($rnow['name'])) {
+                $tmp = explode('/', $key);
+                $global->MQTTLastResult .= sprintf(
+                    '%s{name="%s"} %s %s',
+                    $tmp[1],
+                    $rnow['name'],
+                    $rnow['content'],
+                    $rnow['time'],
+                ) . "\n";
+            } else {
+                $global->MQTTLastResult .= sprintf(
+                    '%s %s %s',
+                    $key,
+                    $rnow['content'],
+                    $rnow['time'],
+                ) . "\n";
+            }
+
         }
         foreach ($global->MQTT_count as $key => $val) {
             $global->MQTTLastResult .= sprintf(
@@ -65,7 +94,7 @@ $web_worker->onMessage = function (TcpConnection $connection, Request $request) 
 
 Worker::runAll();
 
-function GetMicrotime()
+function GetMicrotime(): int
 {
     return (int) (microtime(true) * 1000);
 }
