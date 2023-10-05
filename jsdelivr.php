@@ -13,6 +13,7 @@ define('GITHUB_HOSTNAME', [
     'raw.githubusercontent.com',
     'github.com',
     'gist.github.com',
+    'easylist.to',
     'gist.githubusercontent.com'
 ]);
 define('JSDELIVR_HOST', [
