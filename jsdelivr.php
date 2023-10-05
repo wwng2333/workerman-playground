@@ -43,7 +43,7 @@ function Jsdelivr_Check()
     }
 }
 
-$jsdelivr_worker = new Worker("http://[::]:80");
+$jsdelivr_worker = new Worker("http://[::]:2301");
 $jsdelivr_worker->count = 1;
 $jsdelivr_worker->name = 'jsdelivr';
 $jsdelivr_worker->onWorkerStart = function (Worker $worker) {
