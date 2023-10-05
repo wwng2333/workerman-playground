@@ -26,11 +26,11 @@ define('_403_CODE', '<html><head><title>403 Forbidden</title></head><body><cente
 function Jsdelivr_Check()
 {
     global $global;
-    echo "cron run\n";
+    echo "cron run, ";
     foreach (JSDELIVR_HOST as $host_now) {
         $url = 'https://' . $host_now;
         try {
-            echo "try $url\n";
+            echo "try $url: ";
             $temp = Requests::get($url);
             if ($temp->success) {
                 echo $host_now . " OK\n";
