@@ -64,7 +64,7 @@ $jsdelivr_worker->onMessage = function (TcpConnection $connection, Request $requ
         'Connection' => 'close',
     ]);
     global $global;
-    $url = str_replace('/https:/', 'https://', $request->uri());
+    $url = str_replace('/https://', 'https://', $request->uri());
     var_dump($url);
     if (filter_var($url, FILTER_VALIDATE_URL)) {
         echo "recv url $url\n";
