@@ -1,0 +1,12 @@
+tunnel: UUID
+credentials-file: /root/.cloudflared/UUID.json
+
+ingress:
+  - hostname: ip.csgo.ovh
+    service: http://localhost:2335
+  - hostname: ipmap.csgo.ovh
+    service: http://localhost:2339
+  - hostname: clock.csgo.ovh
+    service: http://localhost:2349
+  - hostname: jsdelivr.csgo.ovh
+    service: http://localhost:2301
