@@ -16,22 +16,20 @@ $nodes = [
 
 function Cron_Run()
 {
+    $result = '';
     global $global, $nodes;
-    $crazy = new CrazySpeedTest($nodes[0], 'ipv4');
-    $global->speedtest_last_result = $crazy->return;
-    $crazy = new CrazyMTRRouteTest($nodes[0], 4);
-    $global->speedtest_last_result .= $crazy->return;
     for ($i = 1; $i < count($nodes); $i++) {
         $crazy = new CrazySpeedTest($nodes[$i], 'ipv4');
-        $global->speedtest_last_result .= $crazy->return;
+        $result .= $crazy->return;
         $crazy = new CrazyMTRRouteTest($nodes[$i], 4);
-        $global->speedtest_last_result .= $crazy->return;
+        $result .= $crazy->return;
     }
+    $global->speedtest_last_result .= $result;
 }
 
-$dianfei_worker = new Worker('http://100.72.128.74:2401');
-$dianfei_worker->name = 'speedtest';
-$dianfei_worker->onWorkerStart = function (Worker $worker) {
+$cron_worker = new Worker();
+$cron_worker->name = 'speedtest_cron';
+$cron_worker->onWorkerStart = function (Worker $worker) {
     global $global;
     $global = new \GlobalData\Client('127.0.0.1:2207');
     Cron_Run();
@@ -43,7 +41,14 @@ $dianfei_worker->onWorkerStart = function (Worker $worker) {
     );
     echo "Cron started.\n";
 };
-$dianfei_worker->onMessage = function (TcpConnection $connection, Request $request) {
+
+$web_worker = new Worker('http://100.72.128.74:2401');
+$web_worker->name = 'speedtest_web';
+$web_worker->onWorkerStart = function (Worker $worker) {
+    global $global;
+    $global = new \GlobalData\Client('127.0.0.1:2207');
+};
+$web_worker->onMessage = function (TcpConnection $connection, Request $request) {
     global $global;
     switch ($request->path()) {
         case '/metrics':
