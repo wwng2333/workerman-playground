@@ -24,7 +24,7 @@ function Cron_Run()
         $crazy = new CrazyMTRRouteTest($nodes[$i], 4);
         $result .= $crazy->return;
     }
-    $global->speedtest_last_result .= $result;
+    $global->speedtest_last_result = $result;
 }
 
 $cron_worker = new Worker();
