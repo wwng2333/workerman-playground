@@ -22,27 +22,44 @@ $web_worker->onWorkerStart = function () {
         ]
     );
     $mqtt->onConnect = function ($mqtt) {
-        $mqtt->subscribe('Crazy/+/+');
+        $mqtt->subscribe('Crazy/+/+/+');
     };
     $mqtt->onMessage = function ($topic, $content) {
         global $global;
         $temp = explode('/', $topic);
-        if (count($temp) > 2) {
+        var_dump($global->MQTT_recv, count($temp));
+        if (count($temp) == 3) {
             $id = $topic;
             $global->MQTT_recv[$id]['content'] = $content;
             $global->MQTT_recv[$id]['time'] = GetMicrotime();
             $global->MQTT_recv[$id]['name'] = $temp[2];
             $global->MQTT_count[$topic] = $global->MQTT_count[$topic] + 1;
-            $global->MQTTLastResult = '';
-        } else {
+        } else if (count($temp) == 4) {
+            $id = $topic;
+            $global->MQTT_recv[$id]['content'] = $content;
+            $global->MQTT_recv[$id]['time'] = GetMicrotime();
+            $global->MQTT_recv[$id]['name'] = $temp[2];
+            $global->MQTT_recv[$id]['type'] = $temp[3];
+            $global->MQTT_count[$topic] = $global->MQTT_count[$topic] + 1;
+        } else if (count($temp) == 2) {
             $id = $topic;
             $global->MQTT_recv[$id]['content'] = $content;
             $global->MQTT_recv[$id]['time'] = GetMicrotime();
             $global->MQTT_count[$topic] = $global->MQTT_count[$topic] + 1;
-            $global->MQTTLastResult = '';
         }
+        $global->MQTTLastResult = '';
         foreach ($global->MQTT_recv as $key => $rnow) {
-            if (isset($rnow['name'])) {
+            if (isset($rnow['type'])) { //->A/B/C/D
+                $tmp = explode('/', $key);
+                $global->MQTTLastResult .= sprintf(
+                    '%s{name="%s" type="%s"} %s %s',
+                    $tmp[1],
+                    $rnow['name'],
+                    $rnow['type'],
+                    $rnow['content'],
+                    $rnow['time'],
+                ) . "\n";
+            } else if (isset($rnow['name'])) { //->A/B/C
                 $tmp = explode('/', $key);
                 $global->MQTTLastResult .= sprintf(
                     '%s{name="%s"} %s %s',
@@ -51,7 +68,7 @@ $web_worker->onWorkerStart = function () {
                     $rnow['content'],
                     $rnow['time'],
                 ) . "\n";
-            } else {
+            } else { // ->A/B
                 $global->MQTTLastResult .= sprintf(
                     '%s %s %s',
                     $key,
@@ -59,7 +76,6 @@ $web_worker->onWorkerStart = function () {
                     $rnow['time'],
                 ) . "\n";
             }
-
         }
         foreach ($global->MQTT_count as $key => $val) {
             $global->MQTTLastResult .= sprintf(
@@ -68,7 +84,7 @@ $web_worker->onWorkerStart = function () {
                 $val,
             ) . "\n";
         }
-        //var_dump($global->MQTTLastResult);
+        var_dump($global->MQTTLastResult);
     };
     $mqtt->connect();
 };
