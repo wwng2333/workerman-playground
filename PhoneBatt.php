@@ -15,7 +15,7 @@ $http_worker->onMessage = function (TcpConnection $connection, Request $request)
     global $batt, $last_time;
     #var_dump($request);
     if ($request->get('batt')) {
-        echo $request->get('batt') . "\n";
+        echo date('Y-m-d H:i:s').": ".$request->get('batt') . "\n";
         $batt = $request->get('batt');
         $last_time = GetMicrotime();
         $connection->close("recv ok!");
