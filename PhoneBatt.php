@@ -6,27 +6,35 @@ use Workerman\Protocols\Http\Response;
 
 require_once __DIR__ . '/vendor/autoload.php';
 
-$batt = 0;
-$last_time = 0;
+$batt = [
+    "last_time" => 0,
+    "batt" => 0,
+    "voltage" => 0,
+    "current" => 0,
+    "temperature" => 0,
+];
 
 $http_worker = new Worker("http://0.0.0.0:2485");
 $http_worker->count = 1;
 $http_worker->onMessage = function (TcpConnection $connection, Request $request) {
-    global $batt, $last_time;
-    #var_dump($request);
+    global $batt;
+    if ($request->path() == '/metrics') {
+        $txt = sprintf("crazy_phone_batt %s %s\n", $batt["batt"], $batt["last_time"]);
+        $txt .= sprintf("crazy_phone_batt_v %s %s\n", $batt["voltage"], $batt["last_time"]);
+        $txt .= sprintf("crazy_phone_batt_c %s %s\n", $batt["current"], $batt["last_time"]);
+        $txt .= sprintf("crazy_phone_batt_t %s %s\n", $batt["temperature"], $batt["last_time"]);
+        $connection->close($txt);
+    }
     if ($request->get('batt')) {
-        echo date('Y-m-d H:i:s').": ".$request->get('batt') . "\n";
-        $batt = $request->get('batt');
-        $last_time = GetMicrotime();
+        var_dump($request->get());
+        $batt["batt"] = $request->get('batt');
+        $batt["last_time"] = GetMicrotime();
+        $batt["voltage"] = $request->get('v');
+        $batt["current"] = $request->get('c');
+        $batt["temperature"] = $request->get('t');
         $connection->close("recv ok!");
     }
-    switch ($request->path()) {
-        case '/metrics':
-            $connection->close(sprintf("crazy_phone_batt %s %s", $batt, $last_time));
-            break;
-        default:
-            $connection->close(new Response(404, [], '404 not found'));
-    }
+    $connection->close(new Response(404, [], '404 not found'));
 };
 
 Worker::runAll();
