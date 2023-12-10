@@ -7,7 +7,7 @@ use Workerman\Protocols\Http\Response;
 use SebastianBergmann\Timer\Timer;
 use GeoIp2\Database\Reader;
 
-$ip_worker = new Worker("http://0.0.0.0:2335");
+$ip_worker = new Worker("http://127.0.0.1:2335");
 $ip_worker->count = 1;
 $ip_worker->name = 'ip';
 $ip_worker->onWorkerStart = function (Worker $worker) {
