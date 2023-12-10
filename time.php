@@ -42,7 +42,15 @@ $http_worker->onMessage = function (TcpConnection $connection, Request $request)
             }
             break;
         default:
-            exec('timedatectl timesync-status', $sync_result, $errno);
+            if (is_readable('/usr/bin/timedatectl')) {
+                echo "exec timedatectl\n";
+                exec('timedatectl timesync-status', $sync_result, $errno);
+            } else if (is_readable('/usr/bin/chronyc')) {
+                echo "exec chronyc\n";
+                exec('chronyc tracking', $sync_result, $errno);
+            } else {
+                echo "exec nothing\n";
+            }
             $sync_status = implode("\n", $sync_result);
             $text = '<!DOCTYPE html><html lang="en"><head><title>Crazy Web Clock</title><meta charset="utf-8"><meta name="viewport"content="width=device-width, initial-scale=1.0"><meta name="author"content="Michael Lee"><link rel="shortcut icon"href="/includes/favicon.ico"type="image/ico"><link crossorigin="anonymous"integrity="sha384-i/ZLCOBtDmoxztrtShNvc3vGe1+IbOGDzkZNC4KLXurv/BT7QInnM2AsPnvbgXH/"href="https://lib.baomitu.com/normalize/5.0.0/normalize.min.css"rel="stylesheet"><link href="./local.min.css"rel="stylesheet"type="text/css"></head><body><div class="container"><h1 class="boxtop"id="sec-clock"><a href="/"><span class="hidephone">Crazy</span> Web Clock</a></h1><div class="box"><table><tr><th>Server</th><td id="server"><em class="red">This clock requires JavaScript.</em></td></tr><tr><th>Client</th><td id="client"></td></tr><tr><th class="nobr">Time Zone</th><td id="timezone"></td></tr><tr><th>Offset</th><td id="offset"></td></tr><tr><th>Delay</th><td id="delay"></td></tr></table><pre><code>%s</code></pre></div><div class="copyright"><p>Copyright&copy;2011&ndash;2023 Michael Lee, Edited by wwng</p><p>%s</p></div></div><script src="./ServerDate.php"></script><script src="./local.js"></script><script>ServerDate.amortizationThreshold=0;setTimeout(resetAmortization,1000*5);updateClocks();updateMetaData(true);setTimeout(updateMetaData,1000*2);setInterval(updateClocks,25);setInterval(updateMetaData,1000*60*5);</script></body></html>';
             $time_usage = round((microtime(true) - $GLOBALS['time_start']) * 1000, 4);
