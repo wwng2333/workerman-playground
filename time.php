@@ -5,7 +5,7 @@ use Workerman\Protocols\Http\Request;
 use Workerman\Protocols\Http\Response;
 
 require_once __DIR__ . '/vendor/autoload.php';
-$http_worker = new Worker("http://0.0.0.0:2349");
+$http_worker = new Worker("http://127.0.0.1:2349");
 $http_worker->count = 2;
 $http_worker->name = 'Crazy Clock';
 $http_worker->onMessage = function (TcpConnection $connection, Request $request) {
