@@ -7,7 +7,7 @@ use Workerman\Protocols\Http\Response;
 use SebastianBergmann\Timer\Timer;
 use GeoIp2\Database\Reader;
 
-$ip_worker = new Worker("http://127.0.0.1:2335");
+$ip_worker = new Worker("http://0.0.0.0:2335");
 $ip_worker->count = 1;
 $ip_worker->name = 'ip';
 $ip_worker->onWorkerStart = function (Worker $worker) {
@@ -33,21 +33,38 @@ $ip_worker->onMessage = function (TcpConnection $connection, Request $request) {
             $info = $ip;
             break;
         case '/asn':
-            $info = $asn_reader->asn($ip)->autonomousSystemNumber;
+            try {
+                $info = $asn_reader->asn($ip)->autonomousSystemNumber;
+            } catch (GeoIp2\Exception\AddressNotFoundException $e) {
+                echo "The address is not in the database.\n";
+            }
             break;
         case '/country':
-            $info = $city_reader->city($ip)->country->isoCode;
+            try {
+                $info = $city_reader->city($ip)->country->isoCode;
+            } catch (GeoIp2\Exception\AddressNotFoundException $e) {
+                echo "The address is not in the database.\n";
+            }
             break;
         case '/ua':
             $info = $request->header()['user-agent'];
             break;
         default:
+            try {
+                $isoCode = $city_reader->city($ip)->country->isoCode;
+                $city_name = $city_reader->city($ip)->country->name;
+                $asn_num = $asn_reader->asn($ip)->autonomousSystemNumber;
+                $asn_org = $asn_reader->asn($ip)->autonomousSystemOrganization;
+            } catch (GeoIp2\Exception\AddressNotFoundException $e) {
+                echo "The address is not in the database.\n";
+            }
             $info = sprintf(
                 "%s\n%s / %s\nAS%s / %s\n\n%s\n%s",
-                $ip, $city_reader->city($ip)->country->isoCode,
-                $city_reader->city($ip)->country->name,
-                $asn_reader->asn($ip)->autonomousSystemNumber,
-                $asn_reader->asn($ip)->autonomousSystemOrganization,
+                $ip,
+                $isoCode,
+                $city_name,
+                $asn_num,
+                $asn_org,
                 $request->header()['user-agent'],
                 $cdn
             );
@@ -59,7 +76,6 @@ $ip_worker->onMessage = function (TcpConnection $connection, Request $request) {
         'Content-Type' => 'text/plain; charset=UTF-8',
     ], $info . "\n");
     $response->header('Server-Timing', $timer->stop()->asMilliseconds());
+
     $connection->close($response);
 };
-
-Worker::runAll();
