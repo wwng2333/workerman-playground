@@ -42,12 +42,12 @@ $http_worker->onMessage = function (TcpConnection $connection, Request $request)
             }
             break;
         default:
-            if (is_readable('/usr/bin/timedatectl')) {
-                echo "exec timedatectl\n";
-                exec('timedatectl timesync-status', $sync_result, $errno);
-            } else if (is_readable('/usr/bin/chronyc')) {
+            if (is_readable('/usr/bin/chronyc')) {
                 echo "exec chronyc\n";
                 exec('chronyc tracking', $sync_result, $errno);
+            } else if (is_readable('/usr/bin/timedatectl')) {
+                echo "exec timedatectl\n";
+                exec('timedatectl timesync-status', $sync_result, $errno);
             } else {
                 echo "exec nothing\n";
             }
